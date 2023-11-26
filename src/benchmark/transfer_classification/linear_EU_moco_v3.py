@@ -22,40 +22,40 @@ from sklearn.model_selection import train_test_split
 from torch.utils.tensorboard import SummaryWriter
 from models.moco_v3 import vits
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', type=str, default='/mnt/d/codes/SSL_examples/datasets/BigEarthNet')
-parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints/resnet/')
-parser.add_argument('--resume', type=str, default='')
-#parser.add_argument('--save_path', type=str, default='./checkpoints/bigearthnet_s2_B12_100_no_pretrain_resnet50.pt')
-
-parser.add_argument('--bands', type=str, default='B13', help='bands to process')  
-parser.add_argument('--train_frac', type=float, default=1.0)
-parser.add_argument('--backbone', type=str, default='resnet50')
-parser.add_argument('--batchsize', type=int, default=256)
-parser.add_argument('--epochs', type=int, default=100)
-parser.add_argument('--num_workers', type=int, default=8)
-parser.add_argument('--lr', type=float, default=0.05)
-parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int,
-                    help='learning rate schedule (when to drop lr by 10x)')
-parser.add_argument('--cos', action='store_true', help='use cosine lr schedule')
-parser.add_argument('--seed', type=int, default=42)
-parser.add_argument('--pretrained', default='', type=str, help='path to moco pretrained checkpoint')
-
-### distributed running ###
-parser.add_argument('--dist_url', default='env://', type=str)
-parser.add_argument("--world_size", default=-1, type=int, help="""
-                    number of processes: it is set automatically and
-                    should not be passed as argument""")
-parser.add_argument("--rank", default=0, type=int, help="""rank of this process:
-                    it is set automatically and should not be passed as argument""")
-parser.add_argument("--local_rank", default=0, type=int,
-                    help="this argument is not used and should be ignored")
-
-parser.add_argument('--normalize', action='store_true', default=False)
-parser.add_argument('--subset', type=str, default=None)
-parser.add_argument('--in_size',type=int,default=56)
-
-parser.add_argument('--linear', action='store_true', default=False)
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--data_dir', type=str, default='/mnt/d/codes/SSL_examples/datasets/BigEarthNet')
+# parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints/resnet/')
+# parser.add_argument('--resume', type=str, default='')
+# #parser.add_argument('--save_path', type=str, default='./checkpoints/bigearthnet_s2_B12_100_no_pretrain_resnet50.pt')
+#
+# parser.add_argument('--bands', type=str, default='B13', help='bands to process')
+# parser.add_argument('--train_frac', type=float, default=1.0)
+# parser.add_argument('--backbone', type=str, default='resnet50')
+# parser.add_argument('--batchsize', type=int, default=256)
+# parser.add_argument('--epochs', type=int, default=100)
+# parser.add_argument('--num_workers', type=int, default=8)
+# parser.add_argument('--lr', type=float, default=0.05)
+# parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int,
+#                     help='learning rate schedule (when to drop lr by 10x)')
+# parser.add_argument('--cos', action='store_true', help='use cosine lr schedule')
+# parser.add_argument('--seed', type=int, default=42)
+# parser.add_argument('--pretrained', default='', type=str, help='path to moco pretrained checkpoint')
+#
+# ### distributed running ###
+# parser.add_argument('--dist_url', default='env://', type=str)
+# parser.add_argument("--world_size", default=-1, type=int, help="""
+#                     number of processes: it is set automatically and
+#                     should not be passed as argument""")
+# parser.add_argument("--rank", default=0, type=int, help="""rank of this process:
+#                     it is set automatically and should not be passed as argument""")
+# parser.add_argument("--local_rank", default=0, type=int,
+#                     help="this argument is not used and should be ignored")
+#
+# parser.add_argument('--normalize', action='store_true', default=False)
+# parser.add_argument('--subset', type=str, default=None)
+# parser.add_argument('--in_size',type=int,default=56)
+#
+# parser.add_argument('--linear', action='store_true', default=False)
 
 def init_distributed_mode(args):
 
@@ -109,13 +109,48 @@ def adjust_learning_rate(optimizer, epoch, args):
 def main():
 
     global args
-    args = parser.parse_args()
-    ### dist ###
-    init_distributed_mode(args)
-    if args.rank != 0:
-        def print_pass(*args):
-            pass
-        builtins.print = print_pass
+    # args = parser.parse_args()
+    #
+    # [print([k, getattr(args, k)]) for k in dir(args)]
+    #
+    # raise ValueError()
+
+    class FakeArgs:
+        dtype = 'uint8'
+        bands = 'B13'
+        batchsize = 256
+        checkpoints_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints'
+        data_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/data/EuroSAT/EuroSATallBands'
+        dist_url = 'env://'
+        backbone = 'vit_small'
+        train_frac = 1.0
+        lr = 0.1
+        cos = True
+        epochs = 100
+        num_workers = 10
+        seed = 42
+        in_size = 224
+        pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12//old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
+        linear = True
+        local_rank = 0
+        normalize = False
+        rank = 0
+        resume = ''
+        schedule = [60, 80]
+        subset = None
+        world_size = -1
+        is_slurm_job = False
+
+
+
+    args = FakeArgs()
+
+    # ### dist ###
+    # init_distributed_mode(args)
+    # if args.rank != 0:
+    #     def print_pass(*args):
+    #         pass
+    #     builtins.print = print_pass
     
     fix_random_seeds(args.seed)
     
@@ -163,14 +198,14 @@ def main():
         sub_train_indices, sub_test_indices = train_test_split(frac_indices, train_size=train_frac, random_state=args.seed)
         train_dataset = Subset(train_dataset,sub_train_indices)    
     ### dist ###    
-    sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)    
+    # sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
         
     train_loader = DataLoader(train_dataset,
                               batch_size=batch_size,
-                              sampler = sampler,
+                              # sampler = sampler,
                               #shuffle=True,
                               num_workers=num_workers,
-                              pin_memory=args.is_slurm_job, # improve a little when using lmdb dataset
+                              # pin_memory=args.is_slurm_job, # improve a little when using lmdb dataset
                               drop_last=True
                               
                               )
@@ -179,7 +214,7 @@ def main():
                               batch_size=batch_size,
                               shuffle=False,
                               num_workers=num_workers,
-                              pin_memory=args.is_slurm_job, # improve a little when using lmdb dataset
+                              # pin_memory=args.is_slurm_job, # improve a little when using lmdb dataset
                               drop_last=True
                               
                               )
@@ -240,7 +275,7 @@ def main():
     if args.resume:
         checkpoint = torch.load(args.resume)
         net.load_state_dict(checkpoint['model_state_dict'])
-        optimzier.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         last_epoch = checkpoint['epoch']
         last_loss = checkpoint['loss']
 
@@ -258,7 +293,7 @@ def main():
         net.train()
         adjust_learning_rate(optimizer, epoch, args)
         
-        train_loader.sampler.set_epoch(epoch)
+        # train_loader.sampler.set_epoch(epoch)
         running_loss = 0.0
         running_acc = 0.0
         

@@ -9,6 +9,8 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import lmdb
+import h5py
+import pandas as pd
 from tqdm import tqdm
 
 
@@ -40,20 +42,33 @@ def normalize(img, mean, std):
     img = np.clip(img, 0, 255).astype(np.uint8)
     return img
 
+def load_meta_df():
+    meta_df = pd.read_csv('/gpfs/work5/0/prjs0790/data/ssl4eo-s12/s2a/0k_251k_uint8_jpeg_tif_s2a_tree_info.csv')
+    temp_var = meta_df['patch_id'].astype(str)
+    meta_df['patch_id'] = temp_var.map(lambda x: (7 - len(x)) * '0' + x)
+    meta_df['file_name'] = meta_df['patch_id'] + '/' + meta_df['snapshot']
+    return meta_df
+
+def load_patch(patch_id, snapshot, band):
+    file_path = f'/gpfs/work5/0/prjs0790/data/ssl4eo-s12/s2a/0k_251k_uint8_jpeg_tif_s2a_{band}.h5'
+    with h5py.File(file_path, 'r') as f:
+        patch_arr = np.array(f.get(f'{patch_id}/{snapshot}'))
+    return patch_arr
 
 ### dataset class
 class SSL4EO(torch.utils.data.Dataset):
 
     def __init__(self,root, normalize=False, mode=['s1','s2a','s2c'], dtype='uint8'):
-        self.root = root
+        # self.root = root
         self.normalize = normalize
         self.mode = mode
         self.dtype = dtype
-        
-        self.ids = os.listdir(os.path.join(self.root,self.mode[0]))
+        self.meta_df = load_meta_df()
+        self.ids = self.meta_df['patch_id'].tolist()
+        # self.ids = os.listdir(os.path.join(self.root,self.mode[0]))
         self.length = len(self.ids)
 
-    def __getitem__(self,index):
+    def __getitem__(self, index):
         
         if 's1' in self.mode:
             img_s1_4s = self.get_array(self.ids[index], 's1') # [4,2,264,264] float32 or uint8                
@@ -76,8 +91,9 @@ class SSL4EO(torch.utils.data.Dataset):
         return self.length
 
     def get_array(self, patch_id, mode):
-        data_root_patch = os.path.join(self.root, mode, patch_id)
-        patch_seasons = os.listdir(data_root_patch)
+        # data_root_patch = os.path.join(self.root, mode, patch_id)
+        # patch_seasons = os.listdir(data_root_patch)
+        patch_seasons = self.meta_df[self.meta_df['patch_id'] == patch_id]['snapshot'].tolist()
         seasons = []
 
         if mode=='s1':
@@ -95,14 +111,19 @@ class SSL4EO(torch.utils.data.Dataset):
             
         for patch_id_season in patch_seasons:
             chs = []
-            for i,band in enumerate(bands):
-                patch_path = os.path.join(data_root_patch,patch_id_season,f'{band}.tif')
-                with rasterio.open(patch_path) as dataset:
-                    ch = dataset.read(1)
-                    ch = cv2.resize(ch, dsize=(264, 264), interpolation=cv2.INTER_LINEAR_EXACT) # [264,264]
-                    #coord = dataset.xy(0,0) # up left
-                    if self.normalize or (self.dtype=='uint8' and mode=='s1'):
-                        ch = normalize(ch, MEAN[i], STD[i])
+            for i, band in enumerate(bands):
+                raw_patch = load_patch(patch_id, patch_id_season, band)
+                ch = cv2.resize(raw_patch, dsize=(264, 264), interpolation=cv2.INTER_LINEAR_EXACT)
+                if self.normalize or (self.dtype=='uint8' and mode=='s1'):
+                    ch = normalize(ch, MEAN[i], STD[i])
+
+                # patch_path = os.path.join(data_root_patch,patch_id_season,f'{band}.tif')
+                # with rasterio.open(patch_path) as dataset:
+                #     ch = dataset.read(1)
+                #     ch = cv2.resize(ch, dsize=(264, 264), interpolation=cv2.INTER_LINEAR_EXACT) # [264,264]
+                #     #coord = dataset.xy(0,0) # up left
+                #     if self.normalize or (self.dtype=='uint8' and mode=='s1'):
+                #         ch = normalize(ch, MEAN[i], STD[i])
                         
                 chs.append(ch)
             img = np.stack(chs, axis=0) # [C,264,264]
@@ -183,7 +204,7 @@ class InfiniteDataLoader(DataLoader):
 def make_lmdb(dataset, lmdb_file, num_workers=6,mode=['s1','s2a','s2c']):
     loader = InfiniteDataLoader(dataset, num_workers=num_workers, collate_fn=lambda x: x[0])
     #env = lmdb.open(lmdb_file, map_size=1099511627776,writemap=True) # continuously write to disk
-    env = lmdb.open(lmdb_file, map_size=1099511627776)
+    env = lmdb.open(lmdb_file, map_size=4099511627776)
     txn = env.begin(write=True)
     for index, (s1, s2a, s2c) in tqdm(enumerate(loader), total=len(dataset), desc='Creating LMDB'):
         if 's1' in mode:
@@ -221,16 +242,29 @@ if __name__ == '__main__':
     import shutil
     from tqdm import tqdm
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--root', type=str)
-    parser.add_argument('--save_path',type=str)
-    parser.add_argument('--make_lmdb_file',action='store_true',default=False)
-    parser.add_argument('--frac',type=float,default=1.0)
-    parser.add_argument('--num_workers', type=int, default=6)
-    parser.add_argument('--normalize',action='store_true',default=False)
-    parser.add_argument('--mode', nargs='*', type=str, default=['s1','s2a','s2c'])
-    parser.add_argument('--dtype',type=str, default='uint8')
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--root', type=str)
+    # parser.add_argument('--save_path',type=str)
+    # parser.add_argument('--make_lmdb_file',action='store_true',default=False)
+    # parser.add_argument('--frac',type=float,default=1.0)
+    # parser.add_argument('--num_workers', type=int, default=6)
+    # parser.add_argument('--normalize',action='store_true',default=False)
+    # parser.add_argument('--mode', nargs='*', type=str, default=['s1','s2a','s2c'])
+    # parser.add_argument('--dtype',type=str, default='uint8')
+    # args = parser.parse_args()
+
+    class FakeArgs:
+        dtype = 'uint8'
+        frac = 1.0
+        make_lmdb_file = True
+        mode = ['s2a']
+        normalize = False
+        num_workers = 18
+        root = None
+        save_path = '/gpfs/work5/0/prjs0790/data/ssl4eo-s12/lmdb/s2a.lmdb'
+
+    args = FakeArgs()
+
 
     ### make lmdb dataset
     if args.make_lmdb_file:
@@ -239,11 +273,11 @@ if __name__ == '__main__':
         train_dataset = SSL4EO(root=args.root, normalize=args.normalize, mode=args.mode, dtype=args.dtype)
         train_subset = random_subset(train_dataset,frac=args.frac,seed=42)
 
-        make_lmdb(train_subset,args.save_path,num_workers=args.num_workers,mode=args.mode)
+        make_lmdb(train_subset, args.save_path, num_workers=args.num_workers, mode=args.mode)
 
     ### check dataset class
     else:   
-        train_dataset = SSL4EO(root=args.root, transform = None)
+        train_dataset = SSL4EO(root=args.root, transform=None)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, num_workers=0)
         i=0
         for idx, (s1,s2a,s2c) in tqdm(enumerate(train_loader),total=len(train_dataset)):

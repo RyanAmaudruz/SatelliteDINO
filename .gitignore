@@ -5,3 +5,5 @@
 **/checkpoints/*
 **/lightning_logs/
 **/results/*
+/old_checkpoints/B13_vits16_moco_0099_ckpt.pth
+/.idea/
