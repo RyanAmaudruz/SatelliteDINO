@@ -628,13 +628,13 @@ class DataAugmentationDINO_S2(object):
             season2 = season1
             season3 = season1
 
-        # x1 = np.transpose(image[season1,:,:,:],(1,2,0))
-        # x2 = np.transpose(image[season2,:,:,:],(1,2,0))
-        # x3 = np.transpose(image[season3,:,:,:],(1,2,0))
+        x1 = np.transpose(image[season1,:,:,:],(1,2,0))
+        x2 = np.transpose(image[season2,:,:,:],(1,2,0))
+        x3 = np.transpose(image[season3,:,:,:],(1,2,0))
 
-        x1 = image[season1,:,:,:]
-        x2 = image[season2,:,:,:]
-        x3 = image[season3,:,:,:]
+        # x1 = image[season1,:,:,:]
+        # x2 = image[season2,:,:,:]
+        # x3 = image[season3,:,:,:]
         
         crops = []
         crops.append(self.global_transfo1(x1) / 255)
