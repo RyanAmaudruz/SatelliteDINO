@@ -19,9 +19,9 @@ dist_url+=:40000
 
 
 # load required modules
-module load Stages/2022
-module load GCCcore/.11.2.0
-module load Python
+#module load Stages/2022
+#module load GCCcore/.11.2.0
+#module load Python
 
 # activate virtual environment
 source /p/project/hai_dm4eo/wang_yi/env2/bin/activate

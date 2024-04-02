@@ -88,6 +88,13 @@ class ChangeDetectionDataset(Dataset):
         self.transform = transform
         self.value_discard = value_discard
 
+        if split == 'test':
+            self.label_path = Path('/gpfs/work5/0/prjs0790/data/oscd/Onera Satellite Change Detection dataset - Test Labels')
+        elif split == 'train':
+            self.label_path = Path('/gpfs/work5/0/prjs0790/data/oscd/Onera Satellite Change Detection dataset - Train Labels')
+        else:
+            raise ValueError(f'Split {split} unexpected!')
+
         with open(self.root / f'{split}.txt') as f:
             names = f.read().strip().split(',')
 
@@ -108,7 +115,8 @@ class ChangeDetectionDataset(Dataset):
         img_2 = read_image(path / 'imgs_2_rect', self.bands, value_discard=self.value_discard)    # Image -> np.array, type: unit8
         # # original: read cm as an Image object
         # cm = Image.open(path / 'cm' / 'cm.png').convert('L')
-        cm = rasterio.open(path / 'cm' / 'cm.png').read(1).astype(np.uint8)     # np.array, type: unit8
+
+        cm = rasterio.open(self.label_path / path.name / 'cm' / 'cm.png').read(1).astype(np.uint8)     # np.array, type: unit8
 
         # # using crop from PIL for 3 bands
         # img_1 = img_1.crop(limits)

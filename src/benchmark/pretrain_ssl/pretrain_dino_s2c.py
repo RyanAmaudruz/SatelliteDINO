@@ -538,13 +538,7 @@ class DataAugmentationDINO(object):
         for _ in range(self.local_crops_number):
             crops.append(self.local_transfo(image))
         return crops        
-        
-        
-        
-        
-        
-        
-        
+
         
 class DataAugmentationDINO_S2(object):
     def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, season='fixed'):

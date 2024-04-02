@@ -20,8 +20,12 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import sys
+sys.path.append('./')
 
-from models.dino.utils import trunc_normal_
+from src.benchmark.pretrain_ssl.models.dino.utils import trunc_normal_
+
+# from models.dino.utils import trunc_normal_
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
@@ -122,7 +126,6 @@ class PatchEmbed(nn.Module):
         self.img_size = img_size
         self.patch_size = patch_size
         self.num_patches = num_patches
-
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x):
@@ -211,7 +214,8 @@ class VisionTransformer(nn.Module):
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-        return x[:, 0]
+        # return x[:, 0]
+        return x
 
     def get_last_selfattention(self, x):
         x = self.prepare_tokens(x)

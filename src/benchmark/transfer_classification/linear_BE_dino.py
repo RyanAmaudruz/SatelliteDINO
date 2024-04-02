@@ -15,6 +15,7 @@ import os
 import argparse
 import json
 from pathlib import Path
+import wandb
 
 import torch
 from torch import nn
@@ -29,7 +30,7 @@ from models.dino import vision_transformer as vits
 
 # load bigearthnet dataset
 from datasets.BigEarthNet.bigearthnet_dataset_seco import Bigearthnet
-from datasets.BigEarthNet.bigearthnet_dataset_seco_lmdb_s2_uint8 import LMDBDataset,random_subset
+from datasets.BigEarthNet.bigearthnet_dataset_seco_lmdb_s2_uint8 import LMDBDataset, random_subset, LMDBDatasetRA
 from cvtorchvision import cvtransforms
 ### end of change ###
 import pdb
@@ -48,16 +49,19 @@ def eval_linear(args):
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
     cudnn.benchmark = True
 
+    # in_channels = 13
+    in_channels = 12
+
     # ============ building network ... ============
     # if the network is a Vision Transformer (i.e. vit_tiny, vit_small, vit_base)
     if args.arch in vits.__dict__.keys():
-        model = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0, in_chans=13)
+        model = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0, in_chans=in_channels)
         embed_dim = model.embed_dim * (args.n_last_blocks + int(args.avgpool_patchtokens))
     # otherwise, we check if the architecture is in torchvision models
     elif args.arch in torchvision_models.__dict__.keys():
         model = torchvision_models.__dict__[args.arch]()
         embed_dim = model.fc.weight.shape[1]
-        model.conv1 = torch.nn.Conv2d(13, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model.conv1 = torch.nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
         model.fc = nn.Identity()
         #model.fc = torch.nn.Linear(2048,19)
     # if the network is a XCiT
@@ -110,13 +114,13 @@ def eval_linear(args):
         args.n_channels = 14
 
 
-    dataset_train = LMDBDataset(
-        lmdb_file=os.path.join(args.data_path, lmdb_train),
+    dataset_train = LMDBDatasetRA(
+        set_type='train',
         transform=train_transform,
         is_slurm_job=args.is_slurm_job
     )
-    dataset_val = LMDBDataset(
-        lmdb_file=os.path.join(args.data_path, lmdb_val),
+    dataset_val = LMDBDatasetRA(
+        set_type='val',
         transform=val_transform,
         is_slurm_job=args.is_slurm_job
     )        
@@ -194,6 +198,7 @@ def eval_linear(args):
             print(f'Max accuracy so far: {best_acc:.2f}%')
             log_stats = {**{k: v for k, v in log_stats.items()},
                          **{f'test_{k}': v for k, v in test_stats.items()}}
+            wandb.log({"val acc1": test_stats["acc1"], "epoch": epoch})
         if utils.is_main_process():
             with (Path(args.checkpoints_dir) / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
@@ -216,8 +221,10 @@ def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool):
     header = 'Epoch: [{}]'.format(epoch)
     for (images, target) in metric_logger.log_every(loader, 20, header):
 
-        b_zeros = torch.zeros((images.shape[0],1,images.shape[2],images.shape[3]),dtype=torch.float32)
-        inp = torch.cat((images[:,:10,:,:],b_zeros,images[:,10:,:,:]),dim=1)
+        # b_zeros = torch.zeros((images.shape[0],1,images.shape[2],images.shape[3]),dtype=torch.float32)
+        # inp = torch.cat((images[:,:10,:,:],b_zeros,images[:,10:,:,:]),dim=1)
+
+        inp = images
         
         # move to gpu
         inp = inp.cuda(non_blocking=True)
@@ -249,6 +256,7 @@ def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool):
         torch.cuda.synchronize()
         metric_logger.update(loss=loss.item())
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        wandb.log({"train loss": loss.item(), "lr": optimizer.param_groups[0]["lr"]})
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -262,8 +270,10 @@ def validate_network(val_loader, model, linear_classifier, n, avgpool):
     header = 'Test:'
     for images, target in metric_logger.log_every(val_loader, 20, header):
 
-        b_zeros = torch.zeros((images.shape[0],1,images.shape[2],images.shape[3]),dtype=torch.float32)
-        inp = torch.cat((images[:,:10,:,:],b_zeros,images[:,10:,:,:]),dim=1)        
+        # b_zeros = torch.zeros((images.shape[0],1,images.shape[2],images.shape[3]),dtype=torch.float32)
+        # inp = torch.cat((images[:,:10,:,:],b_zeros,images[:,10:,:,:]),dim=1)
+        inp = images
+
         # move to gpu
         inp = inp.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
@@ -294,9 +304,14 @@ def validate_network(val_loader, model, linear_classifier, n, avgpool):
         batch_size = inp.shape[0]
         metric_logger.update(loss=loss.item())
         metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
+        #
+        # logger_dic = {"valid loss": loss.item(), "valid acc1": acc1.item()}
         
         if linear_classifier.module.num_labels >= 5:
             metric_logger.meters['acc5'].update(acc5.item(), n=batch_size)
+            # logger_dic['valid acc5'] = acc5.item()
+
+        # wandb.log(logger_dic)
         
     
     if linear_classifier.module.num_labels >= 5:
@@ -324,44 +339,119 @@ class LinearClassifier(nn.Module):
         # linear layer
         return self.linear(x)
 
+class FakeArgs:
+    arch = 'vit_small'
+    avgpool_patchtokens = False
+    bands = 'all'
+    batch_size_per_gpu = 128
+    checkpoint_key = 'teacher'
+    checkpoints_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints/dino_linear_prob_my_w_240110b/'
+    data_path = ''
+    dist_url = 'env://'
+
+    epochs = 100
+    evaluate = False
+
+    # gpu = 0
+
+    is_slurm_job = False
+
+
+    lr = 0.1
+    n_last_blocks = 4
+    num_workers = 10
+    patch_size = 16
+    # pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints/pretrain_checkpoints_231207/checkpoint.pth'
+    # pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints/pretrain_w_wei_231222/checkpoint.pth'
+    pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12/old_checkpoints/B13_vits16_dino_0099_ckpt.pth'
+
+
+
+    # rank = 0
+    resume = True
+
+    val_freq = 5
+
+    train_frac = 1.0
+
+
+
+    # dtype = 'uint8'
+    # bands = 'B13'
+    # batchsize = 256
+    # checkpoints_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints'
+    # data_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/data/EuroSAT/EuroSATallBands'
+    # dist_url = 'env://'
+    # backbone = 'vit_small'
+    # train_frac = 1.0
+    # lr = 0.1
+    # cos = True
+    # epochs = 100
+    # num_workers = 10
+    # seed = 42
+    # in_size = 224
+    # pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12//old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
+    # linear = True
+    # local_rank = 0
+    # normalize = False
+    # rank = 0
+    # resume = ''
+    # schedule = [60, 80]
+    # subset = None
+    # world_size = -1
+    # is_slurm_job = False
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Evaluation with linear classification on BigEarthNet.')
-    parser.add_argument('--n_last_blocks', default=4, type=int, help="""Concatenate [CLS] tokens
-        for the `n` last blocks. We use `n=4` when evaluating ViT-Small and `n=1` with ViT-Base.""")
-    parser.add_argument('--avgpool_patchtokens', default=False, type=utils.bool_flag,
-        help="""Whether ot not to concatenate the global average pooled features to the [CLS] token.
-        We typically set this to False for ViT-Small and to True with ViT-Base.""")
-    parser.add_argument('--arch', default='vit_small', type=str, help='Architecture')
-    parser.add_argument('--patch_size', default=16, type=int, help='Patch resolution of the model.')
-    parser.add_argument('--pretrained', default='', type=str, help="Path to pretrained weights to evaluate.")
-    parser.add_argument("--checkpoint_key", default="teacher", type=str, help='Key to use in the checkpoint (example: "teacher")')
-    parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
-    parser.add_argument("--lr", default=0.001, type=float, help="""Learning rate at the beginning of
-        training (highest LR used during training). The learning rate is linearly scaled
-        with the batch size, and specified here for a reference batch size of 256.
-        We recommend tweaking the LR depending on the checkpoint evaluated.""")
-    parser.add_argument('--batch_size_per_gpu', default=128, type=int, help='Per-GPU batch-size')
-    parser.add_argument("--dist_url", default="env://", type=str, help="""url used to set up
-        distributed training; see https://pytorch.org/docs/stable/distributed.html""")
-    parser.add_argument("--local_rank", default=0, type=int, help="Please ignore and do not set this argument.")
-    parser.add_argument('--data_path', default='/path/to/imagenet/', type=str)
-    parser.add_argument('--num_workers', default=10, type=int, help='Number of data loading workers per GPU.')
-    parser.add_argument('--val_freq', default=5, type=int, help="Epoch frequency for validation.")
-    parser.add_argument('--checkpoints_dir', default=".", help='Path to save logs and checkpoints')
-    parser.add_argument('--num_labels', default=1000, type=int, help='Number of labels for linear classifier')
-    parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
-    
-    parser.add_argument('--lmdb_dir', default='/path/to/imagenet/', type=str, help='Please specify path to the ImageNet folder.')
-    parser.add_argument('--bands', type=str, default='all', help="input bands")
-    parser.add_argument("--lmdb", action='store_true', help="use lmdb dataset")
-    parser.add_argument("--is_slurm_job", action='store_true', help="running in slurm")
-    parser.add_argument("--resume", action='store_true', help="resume from checkpoint")
-    parser.add_argument("--train_frac", default=1.0, type=float, help="use a subset of labeled data")
-    parser.add_argument("--seed",default=42,type=int)
-    
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser('Evaluation with linear classification on BigEarthNet.')
+    # parser.add_argument('--n_last_blocks', default=4, type=int, help="""Concatenate [CLS] tokens
+    #     for the `n` last blocks. We use `n=4` when evaluating ViT-Small and `n=1` with ViT-Base.""")
+    # parser.add_argument('--avgpool_patchtokens', default=False, type=utils.bool_flag,
+    #     help="""Whether ot not to concatenate the global average pooled features to the [CLS] token.
+    #     We typically set this to False for ViT-Small and to True with ViT-Base.""")
+    # parser.add_argument('--arch', default='vit_small', type=str, help='Architecture')
+    # parser.add_argument('--patch_size', default=16, type=int, help='Patch resolution of the model.')
+    # parser.add_argument('--pretrained', default='', type=str, help="Path to pretrained weights to evaluate.")
+    # parser.add_argument("--checkpoint_key", default="teacher", type=str, help='Key to use in the checkpoint (example: "teacher")')
+    # parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
+    # parser.add_argument("--lr", default=0.001, type=float, help="""Learning rate at the beginning of
+    #     training (highest LR used during training). The learning rate is linearly scaled
+    #     with the batch size, and specified here for a reference batch size of 256.
+    #     We recommend tweaking the LR depending on the checkpoint evaluated.""")
+    # parser.add_argument('--batch_size_per_gpu', default=128, type=int, help='Per-GPU batch-size')
+    # parser.add_argument("--dist_url", default="env://", type=str, help="""url used to set up
+    #     distributed training; see https://pytorch.org/docs/stable/distributed.html""")
+    # parser.add_argument("--local_rank", default=0, type=int, help="Please ignore and do not set this argument.")
+    # parser.add_argument('--data_path', default='/path/to/imagenet/', type=str)
+    # parser.add_argument('--num_workers', default=10, type=int, help='Number of data loading workers per GPU.')
+    # parser.add_argument('--val_freq', default=5, type=int, help="Epoch frequency for validation.")
+    # parser.add_argument('--checkpoints_dir', default=".", help='Path to save logs and checkpoints')
+    # parser.add_argument('--num_labels', default=1000, type=int, help='Number of labels for linear classifier')
+    # parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
+    #
+    # parser.add_argument('--lmdb_dir', default='/path/to/imagenet/', type=str, help='Please specify path to the ImageNet folder.')
+    # parser.add_argument('--bands', type=str, default='all', help="input bands")
+    # parser.add_argument("--lmdb", action='store_true', help="use lmdb dataset")
+    # parser.add_argument("--is_slurm_job", action='store_true', help="running in slurm")
+    # parser.add_argument("--resume", action='store_true', help="resume from checkpoint")
+    # parser.add_argument("--train_frac", default=1.0, type=float, help="use a subset of labeled data")
+    # parser.add_argument("--seed",default=42,type=int)
+    #
+    # args = parser.parse_args()
 
+    # [print([k, getattr(args, k)]) for k in dir(args) if not k.startswith('_')]
+    #
+    # raise ValueError()
+    #
+    #
+    args = FakeArgs()
+
+    run = wandb.init(
+        # Set the project where this run will be logged
+        project="MarineDebrisSSL",
+        # Track hyperparameters and run metadata
+        config={k: getattr(args, k) for k in dir(args) if not k.startswith('_')},
+    )
 
     
     eval_linear(args)

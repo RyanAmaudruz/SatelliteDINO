@@ -95,6 +95,36 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         if checkpoint_key is not None and checkpoint_key in state_dict:
             print(f"Take key {checkpoint_key} in provided checkpoint dict")
             state_dict = state_dict[checkpoint_key]
+        if 'state_dict' in state_dict:
+            state_dict = state_dict['state_dict']
+            temp_state_dict = {
+                k.replace('teacher.', ''): v for k, v in state_dict.items()
+                if k.startswith('teacher') and 'projection_head.' not in k and 'prototypes.' not in k
+            }
+            if temp_state_dict:
+                state_dict = temp_state_dict
+            else:
+                temp_state_dict = {
+                    k.replace('module.momentum_encoder.', ''): v for k, v in state_dict.items()
+                    if k.startswith('module.momentum_encoder.') and 'projection_head.' not in k and 'prototypes.' not in k
+                }
+                if temp_state_dict:
+                    state_dict = temp_state_dict
+                else:
+                    temp_state_dict = {
+                        k.replace('momentum_encoder.', ''): v for k, v in state_dict.items()
+                        if k.startswith('momentum_encoder.') and 'projection_head.' not in k and 'prototypes.' not in k
+                    }
+                    if temp_state_dict:
+                        state_dict = temp_state_dict
+                    else:
+                        state_dict = {
+                            k.replace('network.encoder.', ''): v for k, v in state_dict.items()
+                            if k.startswith('network.encoder.')
+                        }
+        if 'model_state_dict' in state_dict:
+            state_dict = state_dict['model_state_dict']
+            state_dict = {k[4:]: v for k, v in state_dict.items() if k.startswith('net.')}
         # remove `module.` prefix
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # remove `backbone.` prefix induced by multicrop wrapper
@@ -504,19 +534,30 @@ def init_distributed_mode(args):
         print('Will run the code on one GPU.')
         args.rank, args.gpu, args.world_size = 0, 0, 1
         os.environ['MASTER_ADDR'] = '127.0.0.1'
+        # os.environ['MASTER_PORT'] = '29501'
         os.environ['MASTER_PORT'] = '29500'
     else:
         print('Does not support training without GPU.')
         sys.exit(1)
 
-    dist.init_process_group(
-        backend="nccl",
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
-    )
+    for i in range(5):
+        try:
+            os.environ['MASTER_PORT'] = f'2950{i}'
+            dist.init_process_group(
+                backend="nccl",
+                init_method=args.dist_url,
+                # init_method='tcp://10.1.1.20:23456',
+                world_size=args.world_size,
+                rank=args.rank,
+            )
 
-    torch.cuda.set_device(args.gpu)
+            torch.cuda.set_device(args.gpu)
+            break
+        except Exception as e:
+            print(f'Error {e} occured. Changing master port!')
+
+
+
     #print('| distributed init (rank {}): {}'.format(
     #    args.rank, args.dist_url), flush=True)
     #dist.barrier()

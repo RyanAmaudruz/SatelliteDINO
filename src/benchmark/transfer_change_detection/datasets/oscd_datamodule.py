@@ -4,7 +4,9 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import functional as TF
 from pytorch_lightning import LightningDataModule
 
-from datasets.oscd_dataset import ChangeDetectionDataset
+from src.benchmark.transfer_change_detection.datasets.oscd_dataset import ChangeDetectionDataset
+
+# from datasets.oscd_dataset import ChangeDetectionDataset
 
 
 ALL_BANDS = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12']
@@ -107,7 +109,7 @@ class ChangeDetectionDataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
-            batch_size=274,
+            batch_size=16,
             shuffle=False, # True,
             num_workers=0,
             drop_last=False,

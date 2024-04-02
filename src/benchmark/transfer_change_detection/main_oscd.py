@@ -10,7 +10,11 @@ import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-from torchmetrics import Precision, Recall, F1Score
+from torchmetrics import Precision, Recall, F1
+
+from src.benchmark.pretrain_ssl.models.dino import vision_transformer as vits, utils
+
+# from models.dino import vision_transformer as vits
 
 from datasets.oscd_datamodule import ChangeDetectionDataModule
 from models.segmentation import get_segmentation_model
@@ -53,9 +57,9 @@ class SiamSegment(LightningModule):
         self.model = get_segmentation_model(backbone, feature_indices, feature_channels)
         self.criterion = BCEWithLogitsLoss()
         self.dice_loss = dice_loss
-        self.prec = Precision(task='binary',threshold=args.mth)
-        self.rec = Recall(task='binary',threshold=args.mth) 
-        self.f1 = F1Score(task='binary',threshold=args.mth) 
+        self.prec = Precision(multiclass=False,threshold=args.mth)
+        self.rec = Recall(multiclass=False,threshold=args.mth)
+        self.f1 = F1(multiclass=False,threshold=args.mth)
 
     def forward(self, x1, x2):
         return self.model(x1, x2)
@@ -140,20 +144,59 @@ def load_ssl_resnet_encoder(net, ckp_path, pf_sdict='module.encoder_q.'):
     
     return net
 
+class FakeArgs:
+    # arch = 'vit_small'
+    # data_dir = '/gpfs/work5/0/prjs0790/data/oscd/Onera Satellite Change Detection dataset - Images'
+    # # ckp_path = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0050.pth'
+    # ckp_path = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_rn50_moco_0099_ckpt.pth'
+    # checkpoint_key = 'teacher'
+    # init_type = 'random'
+    # n_channels = 13
+    # ne = 100
+    # lr = 0.001
+    # value_discard = False
+    # # patch_size = 96
+    # patch_size = 16
+    # batch_size = 8
+    # mth = 0.5
+    # result_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_oscd/start'
+
+
+    # arch = 'vit_small'
+    data_dir = '/gpfs/work5/0/prjs0790/data/oscd/Onera Satellite Change Detection dataset - Images'
+    # ckp_path = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0050.pth'
+    ckp_path = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_rn50_moco_0099_ckpt.pth'
+    checkpoint_key = 'teacher'
+    gpus = 1
+    init_type = 'random'
+    n_channels = 13
+    ne = 100
+    lr = 0.001
+    value_discard = False
+    patch_size = 96
+    batch_size = 8
+    mth = 0.5
+    resnet_type = 50
+    result_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_oscd/start'
 
 if __name__ == '__main__':
     pl.seed_everything(42)
     
     # args
-    args = get_args()
+    # args = get_args()
+    args = FakeArgs()
 
     # dataloader
-    assert(args.nc==3 or args.nc==13 or args.nc==12)
-    datamodule = ChangeDetectionDataModule(args.data_dir, RGB_bands=True if args.nc==3 else False, \
-                                           BGR_bands=False, \
-                                           S2A_bands=True if args.nc==12 else False, \
-                                           value_discard=args.value_discard, \
-                                           patch_size=args.patch_size, batch_size=args.batch_size)
+    assert(args.n_channels==3 or args.n_channels==13 or args.n_channels==12)
+    datamodule = ChangeDetectionDataModule(
+        args.data_dir,
+        RGB_bands=True if args.n_channels==3 else False,
+        BGR_bands=False,
+        S2A_bands=True if args.n_channels==12 else False,
+        value_discard=args.value_discard,
+        patch_size=args.patch_size,
+        batch_size=args.batch_size
+    )
 
     # construct backbone model
     pretrained = False
@@ -171,20 +214,32 @@ if __name__ == '__main__':
     else:
         raise ValueError()
     print(f'Construct the backbone of resnet{args.resnet_type}-initialization: {args.init_type}.')
+
     
     # change the number of input channels of backbone
-    if args.nc != 3:
-        backbone.conv1 = torch.nn.Conv2d(args.nc, 64, 7, stride=2, padding=3, bias=False)
-        print(f'Modify the number of inputs of the backbone to {args.nc}.')
+    if args.n_channels != 3:
+        backbone.conv1 = torch.nn.Conv2d(args.n_channels, 64, 7, stride=2, padding=3, bias=False)
+        print(f'Modify the number of inputs of the backbone to {args.n_channels}.')
     
     # fix backbone layers
     for name, param in backbone.named_parameters():
-            param.requires_grad = False 
+            param.requires_grad = False
     
     # load ckp if given
     if args.ckp_path:
         backbone = load_ssl_resnet_encoder(backbone, args.ckp_path)
         # args.init_type = 'ssl'
+
+    # backbone = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0, in_chans=args.n_channels)
+
+    # # load ckp if given
+    # if args.ckp_path:
+    #     utils.load_pretrained_weights(backbone, args.ckp_path, args.checkpoint_key, args.arch, args.patch_size)
+    #     # args.init_type = 'ssl'
+
+    # # fix backbone layers
+    # for name, param in backbone.named_parameters():
+    #         param.requires_grad = False
 
     model = SiamSegment(backbone, feature_indices=(2, 4, 5, 6, 7), feature_channels=feature_channels)
     # model.example_input_array = (torch.zeros((1, 3, 96, 96)), torch.zeros((1, 3, 96, 96)))
@@ -197,6 +252,7 @@ if __name__ == '__main__':
     early_stop_callback = EarlyStopping(monitor="val/loss", mode="min")
     lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval=None)
     
-    trainer = Trainer(accelerator='gpu', devices=4, strategy="ddp", sync_batchnorm=True, logger=logger, callbacks=[checkpoint_callback,lr_monitor], max_epochs=args.ne, enable_progress_bar=True)
+    trainer = Trainer(accelerator='gpu', devices=1, strategy="ddp", sync_batchnorm=True, logger=logger, callbacks=[checkpoint_callback,lr_monitor], max_epochs=args.ne, enable_progress_bar=True)
+    # trainer = Trainer(accelerator='cpu', devices=1, strategy="ddp", sync_batchnorm=True, logger=logger, callbacks=[checkpoint_callback,lr_monitor], max_epochs=args.ne, enable_progress_bar=True)
     trainer.fit(model, datamodule=datamodule)
     trainer.validate(model, datamodule=datamodule)

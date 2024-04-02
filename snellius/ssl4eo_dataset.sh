@@ -7,6 +7,7 @@
 #SBATCH --time=60:00:00
 #SBATCH --output=ssl4eo_dataset.out
 #SBATCH --job-name=ssl4eo_dataset
+#SBATCH --exclude=gcn45,gcn59
 
 # Execute program located in $HOME
 

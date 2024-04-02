@@ -60,6 +60,19 @@ class MoCo(nn.Module):
         for param_b, param_m in zip(self.base_encoder.parameters(), self.momentum_encoder.parameters()):
             param_m.data = param_m.data * m + param_b.data * (1. - m)
 
+    # def contrastive_loss(self, q, k):
+    #     # normalize
+    #     q = nn.functional.normalize(q, dim=1)
+    #     k = nn.functional.normalize(k, dim=1)
+    #     # gather all targets
+    #     # k = concat_all_gather(k)
+    #     # Einstein sum is more intuitive
+    #     logits = torch.einsum('nc,mc->nm', [q, k]) / self.T
+    #     N = logits.shape[0]  # batch size per GPU
+    #     # labels = (torch.arange(N, dtype=torch.long) + N * torch.distributed.get_rank()).cuda()
+    #     labels = torch.arange(N, dtype=torch.long, device='cuda')
+    #     return nn.CrossEntropyLoss()(logits, labels) * (2 * self.T)
+
     def contrastive_loss(self, q, k):
         # normalize
         q = nn.functional.normalize(q, dim=1)
@@ -70,6 +83,7 @@ class MoCo(nn.Module):
         logits = torch.einsum('nc,mc->nm', [q, k]) / self.T
         N = logits.shape[0]  # batch size per GPU
         labels = (torch.arange(N, dtype=torch.long) + N * torch.distributed.get_rank()).cuda()
+        # labels = torch.arange(N, dtype=torch.long, device='cuda')
         return nn.CrossEntropyLoss()(logits, labels) * (2 * self.T)
 
     def forward(self, x1, x2, m):

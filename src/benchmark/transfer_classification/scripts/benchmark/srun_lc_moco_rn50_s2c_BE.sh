@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+e#!/usr/bin/env bash
 
 # slurm job configuration
 #SBATCH --nodes=1

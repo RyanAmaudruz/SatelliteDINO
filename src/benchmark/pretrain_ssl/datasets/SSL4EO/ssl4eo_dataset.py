@@ -50,7 +50,7 @@ def load_meta_df():
     return meta_df
 
 def load_patch(patch_id, snapshot, band):
-    file_path = f'/gpfs/work5/0/prjs0790/data/ssl4eo-s12/s2a/0k_251k_uint8_jpeg_tif_s2a_{band}.h5'
+    file_path = f'/gpfs/work5/0/prjs0790/data/ssl4eo-s12/s2a_un/0k_251k_uint8_jpeg_tif_s2a_{band}.h5'
     with h5py.File(file_path, 'r') as f:
         patch_arr = np.array(f.get(f'{patch_id}/{snapshot}'))
     return patch_arr

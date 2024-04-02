@@ -128,6 +128,12 @@ class PatchEmbed(nn.Module):
     def forward(self, x):
         B, C, H, W = x.shape
         x = self.proj(x).flatten(2).transpose(1, 2)
+        # try:
+        #     x = self.proj(x).flatten(2).transpose(1, 2)
+        # except:
+        #     print(x.shape)
+        #     print(self.proj)
+        #     print('t')
         return x
 
 
