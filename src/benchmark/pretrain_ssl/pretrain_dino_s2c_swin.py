@@ -226,15 +226,52 @@ def train_dino(args):
 
     print(f"Data loaded: there are {len(dataset)} images.")
 
-    student =  partial(
-        SwinTransformer,
-        img_size=224,
+    # student =  partial(
+    #     SwinTransformer,
+    #     img_size=224,
+    #     patch_size=16,
+    #     in_chans=13,
+    #     embed_dim=384,
+    #     depths=[2, 2, 18, 2],
+    #     num_heads=[3, 6, 12, 24],
+    #     window_size=7,
+    #     mlp_ratio=4.,
+    #     qkv_bias=True,
+    #     qk_scale=None,
+    #     drop_rate=0.2,
+    #     ape=False,
+    #     patch_norm=True,
+    #     use_checkpoint=False,
+    #     norm_befor_mlp='ln',
+    # )
+    #
+    # teacher =  partial(
+    #     SwinTransformer,
+    #     img_size=224,
+    #     patch_size=16,
+    #     in_chans=13,
+    #     embed_dim=384,
+    #     depths=[2, 2, 18, 2],
+    #     num_heads=[3, 6, 12, 24],
+    #     window_size=7,
+    #     mlp_ratio=4.,
+    #     qkv_bias=True,
+    #     qk_scale=None,
+    #     drop_rate=0,
+    #     ape=False,
+    #     patch_norm=True,
+    #     use_checkpoint=False,
+    #     norm_befor_mlp='ln',
+    # )
+
+    student =  SwinTransformer(
+        img_size=256,
         patch_size=16,
         in_chans=13,
         embed_dim=384,
         depths=[2, 2, 18, 2],
         num_heads=[3, 6, 12, 24],
-        window_size=7,
+        window_size=8,
         mlp_ratio=4.,
         qkv_bias=True,
         qk_scale=None,
@@ -245,8 +282,7 @@ def train_dino(args):
         norm_befor_mlp='ln',
     )
 
-    teacher =  partial(
-        SwinTransformer,
+    teacher =  SwinTransformer(
         img_size=224,
         patch_size=16,
         in_chans=13,
@@ -263,6 +299,7 @@ def train_dino(args):
         use_checkpoint=False,
         norm_befor_mlp='ln',
     )
+
 
     embed_dim = 384
 
@@ -298,16 +335,8 @@ def train_dino(args):
     # utils.load_pretrained_weights(student, pretrained_weights='', model_name='vit_small', checkpoint_key=None, patch_size=args.patch_size)
 
     # multi-crop wrapper handles forward with inputs of different resolutions
-    student = utils.MultiCropWrapper(student, DINOHead(
-        embed_dim,
-        args.out_dim,
-        use_bn=args.use_bn_in_head,
-        norm_last_layer=args.norm_last_layer,
-    ))
-    teacher = utils.MultiCropWrapper(
-        teacher,
-        DINOHead(embed_dim, args.out_dim, args.use_bn_in_head),
-    )
+    student = utils.MultiCropWrapper(student, student.head)
+    teacher = utils.MultiCropWrapper(teacher, teacher.head)
     # move networks to gpu
     student, teacher = student.cuda(), teacher.cuda()
     # # synchronize batch norms (if any)
@@ -566,7 +595,7 @@ class DataAugmentationDINO(object):
 
         # first global crop
         self.global_transfo1 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
+            cvtransforms.RandomResizedCrop(128, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
             cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
             normalize,
@@ -574,7 +603,7 @@ class DataAugmentationDINO(object):
         ])
         # second global crop
         self.global_transfo2 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
+            cvtransforms.RandomResizedCrop(128, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
             cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
             cvtransforms.RandomApply([Solarize(128)], p=0.2),
@@ -598,63 +627,66 @@ class DataAugmentationDINO(object):
         for _ in range(self.local_crops_number):
             crops.append(self.local_transfo(image))
         return crops
-        
+
 class DataAugmentationDINO_S2(object):
     def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, season='fixed'):
-        flip_and_color_jitter = transforms.Compose([
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomApply([
-                RandomBrightness(0.4),
-                RandomContrast(0.4),
-                RandomSaturation(0.2),
-                RandomHue(0.1)
-            ], p=0.8),
-            transforms.RandomApply([ToGray(13)], p=0.2),
-        ])
-        # flip_and_color_jitter = cvtransforms.Compose([
-        #     cvtransforms.RandomHorizontalFlip(p=0.5),
-        #     cvtransforms.RandomApply([
+        # flip_and_color_jitter = transforms.Compose([
+        #     transforms.RandomHorizontalFlip(p=0.5),
+        #     transforms.RandomApply([
         #         RandomBrightness(0.4),
         #         RandomContrast(0.4),
         #         RandomSaturation(0.2),
         #         RandomHue(0.1)
         #     ], p=0.8),
-        #     cvtransforms.RandomApply([ToGray(13)], p=0.2),
+        #     transforms.RandomApply([ToGray(13)], p=0.2),
         # ])
-        # normalize = transforms.Compose([
-        #     transforms.ToTensor(),
-        #     #cvtransforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-        # ])
-        
+        flip_and_color_jitter = cvtransforms.Compose([
+            cvtransforms.RandomHorizontalFlip(p=0.5),
+            cvtransforms.RandomApply([
+                RandomBrightness(0.4),
+                RandomContrast(0.4),
+                RandomSaturation(0.2),
+                RandomHue(0.1)
+            ], p=0.8),
+            cvtransforms.RandomApply([ToGray(13)], p=0.2),
+        ])
+        normalize = transforms.Compose([
+            transforms.ToTensor(),
+            #cvtransforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+
         # first global crop
         self.global_transfo1 = transforms.Compose([
-            transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            # transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            cvtransforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
-            transforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
-            # normalize,
+            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
+            normalize,
         ])
         # second global crop
         self.global_transfo2 = transforms.Compose([
-            transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            # transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            cvtransforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
-            transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
-            transforms.RandomApply([Solarize(128)], p=0.2),
-            # normalize,
+            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
+            cvtransforms.RandomApply([Solarize(128)], p=0.2),
+            normalize,
         ])
         # transformation for the local small crops
         self.local_crops_number = local_crops_number
         self.local_transfo = transforms.Compose([
-            transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            # transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=InterpolationMode.BICUBIC),
+            cvtransforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
-            transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-            # normalize,
+            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+            normalize,
         ])
-        
-        
+
+
         self.season = season
 
     def __call__(self, image):
-        
+
         if self.season=='augment':
             season1 = np.random.choice([0,1,2,3])
             season2 = np.random.choice([0,1,2,3])
@@ -669,14 +701,14 @@ class DataAugmentationDINO_S2(object):
             season2 = season1
             season3 = season1
 
-        # x1 = np.transpose(image[season1,:,:,:],(1,2,0))
-        # x2 = np.transpose(image[season2,:,:,:],(1,2,0))
-        # x3 = np.transpose(image[season3,:,:,:],(1,2,0))
+        x1 = np.transpose(image[season1,:,:,:],(1,2,0))
+        x2 = np.transpose(image[season2,:,:,:],(1,2,0))
+        x3 = np.transpose(image[season3,:,:,:],(1,2,0))
 
-        x1 = image[season1,:,:,:]
-        x2 = image[season2,:,:,:]
-        x3 = image[season3,:,:,:]
-        
+        # x1 = image[season1,:,:,:]
+        # x2 = image[season2,:,:,:]
+        # x3 = image[season3,:,:,:]
+
         crops = []
         crops.append(self.global_transfo1(x1) / 255)
         crops.append(self.global_transfo2(x2) / 255)
@@ -745,7 +777,8 @@ class FakeArgs:
     epochs = 100
     freeze_last_layer = 1
     global_crops_scale = (0.4, 1.0)
-    in_size = 224
+    # in_size = 224
+    in_size = 256
     is_slurm_job = False
     lmdb = False
     local_crops_number = 8

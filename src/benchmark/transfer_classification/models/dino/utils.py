@@ -73,8 +73,6 @@ class cvGaussianBlur(object):
         return cv2.GaussianBlur(x,(0,0),sigma)
 
 
-
-
 class Solarization(object):
     """
     Apply Solarization to the PIL image.
@@ -87,6 +85,25 @@ class Solarization(object):
             return ImageOps.solarize(img)
         else:
             return img
+#
+# class PretrainWeightsLoader:
+#     def __init__(self):
+#         pass
+#
+#     def load_weights(self, pretrained_weights, model):
+#         raw_state_dict = torch.load(pretrained_weights, map_location="cpu")
+#         weight_type = self.check_weight_type(raw_state_dict)
+#         state_dict = self.extract_state_dict[weight_type](raw_state_dict)
+#         msg = model.load_state_dict(state_dict, strict=False)
+#         print(f'Pretrained weights: {pretrained_weights}')
+#         print(f'Missing keys: {msg.missing_keys}')
+#         print(f'Unexpected keys: {msg.unexpected_keys}')
+#         return model
+#
+#
+#     def check_weight_type(self, pretrained_weights):
+#         pass
+
 
 
 def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):

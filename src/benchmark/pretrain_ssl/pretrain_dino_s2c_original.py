@@ -637,10 +637,10 @@ class DataAugmentationDINO_S2(object):
         # x3 = image[season3,:,:,:]
         
         crops = []
-        crops.append(self.global_transfo1(x1) / 255)
-        crops.append(self.global_transfo2(x2) / 255)
+        crops.append(self.global_transfo1(x1))
+        crops.append(self.global_transfo2(x2))
         for _ in range(self.local_crops_number):
-            crops.append(self.local_transfo(x3) / 255)
+            crops.append(self.local_transfo(x3))
         return crops
 
 class DataAugmentationDINO_S1(object):

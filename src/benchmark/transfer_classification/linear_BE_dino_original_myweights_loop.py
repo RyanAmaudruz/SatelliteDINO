@@ -232,10 +232,32 @@ def eval_linear(args):
     #     for i in range(2)
     # ]
 
+    # checkpoints = [
+    #     f'/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-01_15-54_ckpt{i}_vit_adapter_ema_network.pth'
+    #     for i in range(5)
+    # ]
+
+    # checkpoints = [
+    #     f'/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-02_10-01_ckpt{i}_vit_adapter_ema_network.pth'
+    #     for i in range(5)
+    # ]
+
+    # checkpoints = [
+    #     '/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-04_17-16_ckpt0_vit_adapter_online_network.pth',
+    #     '/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-04_17-16_ckpt0_vit_adapter_ema_network.pth'
+    # ]
+
+    # checkpoints = [
+    #     f'/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-06_08-14_ckpt1_vit_adapter_online_network.pth'
+    #     for i in range(1)
+    # ]
+
+
     checkpoints = [
-        f'/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-01_15-54_ckpt{i}_vit_adapter_ema_network.pth'
-        for i in range(5)
+        f'/gpfs/work5/0/prjs0790/data/modified_checkpoints/ssl4eo_odin_run_2024-04-11_16-55_ckpt{i}_vit_adapter_online_network.pth'
+        for i in range(4)
     ]
+
 
     # checkpoints = [
     #     f'/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/odin/run_2024-03-21_18-59/ckp-epoch=0{4}.ckpt'

@@ -273,6 +273,34 @@ def new_get_array(meta_df, patch_id):
 
     return img
 
+def new_get_array_normalised(meta_df, patch_id):
+    # data_root_patch = os.path.join(self.root, mode, patch_id)
+    # patch_seasons = os.listdir(data_root_patch)
+    # patch_seasons = meta_df[meta_df['patch_id'] == patch_id]['snapshot'].tolist()
+
+    patch_seasons = meta_df[meta_df['patch_id'] == patch_id]['timestamp'].tolist()
+    seasons = []
+
+    bands = ALL_BANDS_S2_L1C
+    MEAN = S2C_MEAN
+    STD = S2C_STD
+
+    for patch_id_season in patch_seasons:
+        chs = []
+        for i, band in enumerate(bands):
+            raw_patch = load_patch(patch_id, patch_id_season, band)
+            ch = cv2.resize(raw_patch, dsize=(264, 264), interpolation=cv2.INTER_LINEAR_EXACT)
+            chs.append(ch)
+        img = np.stack(chs, axis=0) # [C,264,264]
+        seasons.append(img)
+    img_4s = np.stack(seasons, axis=0) # [4,C,264,264]
+
+    img = (img_4s / 10000.0 * 255.0).astype('uint8')
+    # seasons.append(img)
+    # img_4s = np.stack(seasons, axis=0) # [4,C,264,264]
+
+    return img
+
 # patch_ids = meta_df['t'].map(lambda x: x.split("'")[1]).tolist()
 
 # import time
