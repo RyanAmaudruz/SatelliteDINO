@@ -45,7 +45,7 @@ import pdb
 
 from torch.utils.tensorboard import SummaryWriter
 
-from datasets.SSL4EO.ssl4eo_dataset_lmdb_new import LMDBDatasetS2A
+from datasets.SSL4EO.ssl4eo_dataset_lmdb_old import LMDBDatasetS2A
 
 #import warnings
 #warnings.filterwarnings("error")

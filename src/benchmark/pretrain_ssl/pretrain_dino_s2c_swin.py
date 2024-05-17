@@ -50,7 +50,7 @@ import pdb
 
 from torch.utils.tensorboard import SummaryWriter
 
-from datasets.SSL4EO.ssl4eo_dataset_lmdb_new import LMDBDatasetS2C
+from datasets.SSL4EO.ssl4eo_dataset_lmdb_old import LMDBDatasetS2C
 from src.benchmark.pretrain_ssl.models.swin.swin_transformer import SwinTransformer
 
 #import warnings

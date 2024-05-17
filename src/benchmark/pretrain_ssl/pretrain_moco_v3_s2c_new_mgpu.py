@@ -48,7 +48,7 @@ from cvtorchvision import cvtransforms
 from src.benchmark.pretrain_ssl.models.rs_transforms_uint8 import RandomSaturation, RandomHue
 from src.benchmark.pretrain_ssl.models.rs_transforms_uint8 import RandomChannelDrop,RandomBrightness,RandomContrast,ToGray
 
-from src.benchmark.pretrain_ssl.datasets.SSL4EO.ssl4eo_dataset_lmdb_new import LMDBDatasetS2C
+from src.benchmark.pretrain_ssl.datasets.SSL4EO.ssl4eo_dataset_lmdb_old import LMDBDatasetS2C
 
 torchvision_model_names = sorted(name for name in torchvision_models.__dict__
     if name.islower() and not name.startswith("__")
