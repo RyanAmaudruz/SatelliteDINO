@@ -31,6 +31,8 @@ import torch
 from torch import nn
 import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
+from transformers import Dinov2Model
+from torchvision.transforms import Normalize
 
 import cv2
 
