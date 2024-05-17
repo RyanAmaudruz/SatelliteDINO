@@ -706,7 +706,7 @@ if __name__ == '__main__':
 
     run = wandb.init(
         # Set the project where this run will be logged
-        project="MarineDebrisSSL",
+        project="MarineDebrisSSLDistillation",
         name='pretrain_dino_s2c_distillation',
         # Track hyperparameters and run metadata
         config={k: getattr(args, k) for k in dir(args) if not k.startswith('_')},
