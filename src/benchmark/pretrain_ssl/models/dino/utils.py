@@ -33,6 +33,7 @@ import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
 from transformers import Dinov2Model
 from torchvision.transforms import Normalize
+import torchvision
 
 import cv2
 
@@ -697,21 +698,98 @@ class MultiCropWrapperDistillation(nn.Module):
             return_counts=True,
         )[1], 0)
         start_idx, output = 0, torch.empty(0).to(x[0].device)
-        dino_2_ret = None
-        student_out = None
+        dino_2_ret_g = None
+        student_out_g = None
+        dino_2_ret_l = None
+        student_out_l = None
         for index_count, end_idx in enumerate(idx_crops):
             in_crops = torch.cat(x[start_idx: end_idx])
-            _out = self.backbone(in_crops)
+            _out = self.backbone(in_crops)[:, 0]
             if self.student_bool and index_count == 0:
-                in_crops_rgb = in_crops[:, 1:4, ...].flip(1)
-                dino_2_ret = self.dino_v2(self.dino_v2_normalisation(in_crops_rgb))['pooler_output']
-                student_out = self.distillation_linear_layer(_out)
+                dino_2_ret_g = torch.nn.functional.normalize(
+                    self.dino_v2(self.dino_v2_normalisation(
+                        in_crops[:, 1:4, ...].flip(1)
+                    ))['pooler_output']
+                )
+                student_out_g = torch.nn.functional.normalize(
+                    self.distillation_linear_layer(_out)
+                )
+            # elif self.student_bool and index_count == 1:
+            #     dino_2_ret_l = torch.nn.functional.normalize(
+            #         self.dino_v2(self.dino_v2_normalisation(
+            #             in_crops[:, 1:4, ...].flip(1)
+            #         ))['pooler_output']
+            #     )
+            #     student_out_l = torch.nn.functional.normalize(
+            #         self.distillation_linear_layer(_out)
+            #     )
             # The output is a tuple with XCiT model. See:
             # https://github.com/facebookresearch/xcit/blob/master/xcit.py#L404-L405
             if isinstance(_out, tuple):
                 _out = _out[0]
             # accumulate outputs
             output = torch.cat((output, _out))
+            start_idx = end_idx
+        # Run the head forward on the concatenated features.
+        return self.head(output), dino_2_ret_g, student_out_g,  dino_2_ret_l, student_out_l
+
+
+class MultiCropWrapperDenseDistillation(nn.Module):
+    """
+    Perform forward pass separately on each resolution input.
+    The inputs corresponding to a single resolution are clubbed and single
+    forward is run on the same resolution inputs. Hence we do several
+    forward passes = number of different resolutions used. We then
+    concatenate all the output features and run the head forward on these
+    concatenated features.
+    """
+    def __init__(self, backbone, head, student_bool=True):
+        super().__init__()
+        # disable layers dedicated to ImageNet labels classification
+        backbone.fc, backbone.head = nn.Identity(), nn.Identity()
+        self.backbone = backbone
+        self.head = head
+        self.student_bool = student_bool
+        if student_bool:
+            self.dino_v2 = Dinov2Model.from_pretrained("facebook/dinov2-small")
+            self.dino_v2_resize = torchvision.transforms.Resize(196)
+            self.dino_v2_normalisation =  Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+            # self.distillation_linear_layer = nn.Linear(384, 384)
+        else:
+            self.dino_v2 = None
+            self.dino_v2_normalisation = None
+
+
+    def forward(self, x):
+        # convert to list
+        if not isinstance(x, list):
+            x = [x]
+        idx_crops = torch.cumsum(torch.unique_consecutive(
+            torch.tensor([inp.shape[-1] for inp in x]),
+            return_counts=True,
+        )[1], 0)
+        start_idx, output = 0, torch.empty(0).to(x[0].device)
+        dino_2_ret = None
+        student_out = None
+        for index_count, end_idx in enumerate(idx_crops):
+            in_crops = torch.cat(x[start_idx: end_idx])
+            _out = self.backbone(in_crops)
+            if self.student_bool and index_count == 0:
+                in_crops_rgb = self.dino_v2_resize(in_crops[:, 1:4, ...].flip(1))
+                dino_2_ret = torch.nn.functional.normalize(
+                    self.dino_v2(self.dino_v2_normalisation(in_crops_rgb))['last_hidden_state'],
+                    dim=2
+                )
+                student_out = torch.nn.functional.normalize(
+                    # self.distillation_linear_layer(_out)
+                    _out
+                )
+            # The output is a tuple with XCiT model. See:
+            # https://github.com/facebookresearch/xcit/blob/master/xcit.py#L404-L405
+            if isinstance(_out, tuple):
+                _out = _out[0]
+            # accumulate outputs
+            output = torch.cat((output, _out[:, 0]))
             start_idx = end_idx
         # Run the head forward on the concatenated features.
         return self.head(output), dino_2_ret, student_out

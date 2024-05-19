@@ -161,14 +161,6 @@ def get_args_parser():
     
     return parser
 
-class CosineSimilarityLoss(nn.Module):
-    def __init__(self):
-        super(CosineSimilarityLoss, self).__init__()
-
-    def forward(self, input1, input2):
-        cos_sim = F.cosine_similarity(input1, input2, dim=1)
-        return 1 - cos_sim.mean()
-
 
 def train_dino(args):
     # utils.init_distributed_mode(args)
@@ -263,13 +255,13 @@ def train_dino(args):
     # utils.load_pretrained_weights(student, pretrained_weights='', model_name='vit_small', checkpoint_key=None, patch_size=args.patch_size)
 
     # multi-crop wrapper handles forward with inputs of different resolutions
-    student = utils.MultiCropWrapperDistillation(
+    student = utils.MultiCropWrapperDenseDistillation(
         student,
         DINOHead(embed_dim, args.out_dim, use_bn=args.use_bn_in_head, norm_last_layer=args.norm_last_layer),
         student_bool=True
 
     )
-    teacher = utils.MultiCropWrapperDistillation(
+    teacher = utils.MultiCropWrapperDenseDistillation(
         teacher,
         DINOHead(embed_dim, args.out_dim, args.use_bn_in_head),
         student_bool=False
@@ -395,8 +387,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                     fp16_scaler, args):
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Epoch: [{}/{}]'.format(epoch, args.epochs)
-    cos_sim_loss = CosineSimilarityLoss()
-
+    l2_loss = nn.MSELoss()
     for it, images in enumerate(metric_logger.log_every(data_loader, 10, header)):
         
         #images = [torch.cat((images_s2[i],images_s1[i]),axis=1) for i in range(len(images_s2))]
@@ -412,14 +403,11 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
         images = [im.cuda(non_blocking=True) for im in images]
         # teacher and student forward passes + compute dino loss
         with torch.cuda.amp.autocast(fp16_scaler is not None):
-            teacher_output = teacher(images[:2])[0]  # only the 2 global views pass through the teacher
-            student_output, s_dino_v2_out_g, student_out_g, s_dino_v2_out_l, student_out_l = student(images)
+            teacher_output, _, _ = teacher(images[:2])  # only the 2 global views pass through the teacher
+            student_output, s_dino_v2_out, student_out = student(images)
             dino_loss_out = dino_loss(student_output, teacher_output, epoch)
-            g_distillation_loss = cos_sim_loss(s_dino_v2_out_g, student_out_g)
-            # l_distillation_loss = cos_sim_loss(s_dino_v2_out_l, student_out_l)
-            # distillation_loss = g_distillation_loss + l_distillation_loss
-            distillation_loss = g_distillation_loss
-            loss = dino_loss_out + distillation_loss * 3
+            distillation_loss = l2_loss(s_dino_v2_out, student_out)
+            loss = dino_loss_out + distillation_loss * 1000
         if not math.isfinite(loss.item()):
             print("Loss is {}, stopping training".format(loss.item()), force=True)
             sys.exit(1)
@@ -666,9 +654,10 @@ class DataAugmentationDINO_S2(object):
 class FakeArgs:
     arch = 'vit_small'
     bands = 'B13'
-    # batchsize = 48
     batchsize = 96
-    checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/distillation_cos_sim_no_predictor'
+    # batchsize = 48
+    # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/dense_distillation'
+    checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/dense_distillation_cos_sim'
     clip_grad = 3.0
     data = ''
     dist_url = ''
@@ -720,7 +709,7 @@ if __name__ == '__main__':
     run = wandb.init(
         # Set the project where this run will be logged
         project="MarineDebrisSSLDistillation",
-        name='pretrain_dino_s2c_distillation',
+        name='pretrain_dino_s2c_dense_distillation',
         # Track hyperparameters and run metadata
         config={k: getattr(args, k) for k in dir(args) if not k.startswith('_')},
     )
