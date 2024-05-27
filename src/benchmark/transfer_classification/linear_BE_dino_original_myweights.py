@@ -348,7 +348,7 @@ class FakeArgs:
     batch_size_per_gpu = 64
     checkpoint_key = 'teacher'
     # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/be_dino_linear_prob_myweights100_240206/'
-    checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/test/'
+    checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/distillation_l2_norm/'
     data_path = ''
     dist_url = 'env://'
     epochs = 100
@@ -366,8 +366,8 @@ class FakeArgs:
     # pretrained = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/moco_s2c_new_transforms/checkpoint_0034.pth.tar'
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/leopart_ssl/leopart_new_transform/leopart-20240301-143933/ckp-epoch=49.ckpt'
-    pretrained = '/gpfs/home2/ramaudruz/detcon-pytorch/detcon-pytorch/xxea7lru/checkpoints/epoch=1-step=7845.ckpt'
-
+    pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
+    # '/gpfs/home2/ramaudruz/detcon-pytorch/detcon-pytorch/xxea7lru/checkpoints/epoch=1-step=7845.ckpt'
     # rank = 0
     resume = True
     seed = 42

@@ -698,20 +698,17 @@ class MultiCropWrapperDistillation(nn.Module):
             return_counts=True,
         )[1], 0)
         start_idx, output = 0, torch.empty(0).to(x[0].device)
-        dino_2_ret_g = None
-        student_out_g = None
-        dino_2_ret_l = None
-        student_out_l = None
+        dino_2_ret = None
+        student_out = None
         for index_count, end_idx in enumerate(idx_crops):
             in_crops = torch.cat(x[start_idx: end_idx])
             _out = self.backbone(in_crops)[:, 0]
             if self.student_bool and index_count == 0:
-                dino_2_ret_g = torch.nn.functional.normalize(
-                    self.dino_v2(self.dino_v2_normalisation(
-                        in_crops[:, 1:4, ...].flip(1)
-                    ))['pooler_output']
+                in_crops_rgb = in_crops[:, 1:4, ...].flip(1)
+                dino_2_ret = torch.nn.functional.normalize(
+                    self.dino_v2(self.dino_v2_normalisation(in_crops_rgb))['pooler_output']
                 )
-                student_out_g = torch.nn.functional.normalize(
+                student_out = torch.nn.functional.normalize(
                     self.distillation_linear_layer(_out)
                 )
             # elif self.student_bool and index_count == 1:
@@ -731,7 +728,7 @@ class MultiCropWrapperDistillation(nn.Module):
             output = torch.cat((output, _out))
             start_idx = end_idx
         # Run the head forward on the concatenated features.
-        return self.head(output), dino_2_ret_g, student_out_g,  dino_2_ret_l, student_out_l
+        return self.head(output), dino_2_ret, student_out
 
 
 class MultiCropWrapperDenseDistillation(nn.Module):
@@ -754,7 +751,7 @@ class MultiCropWrapperDenseDistillation(nn.Module):
             self.dino_v2 = Dinov2Model.from_pretrained("facebook/dinov2-small")
             self.dino_v2_resize = torchvision.transforms.Resize(196)
             self.dino_v2_normalisation =  Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-            # self.distillation_linear_layer = nn.Linear(384, 384)
+            self.distillation_linear_layer = nn.Linear(384, 384)
         else:
             self.dino_v2 = None
             self.dino_v2_normalisation = None
@@ -781,8 +778,7 @@ class MultiCropWrapperDenseDistillation(nn.Module):
                     dim=2
                 )
                 student_out = torch.nn.functional.normalize(
-                    # self.distillation_linear_layer(_out)
-                    _out
+                    self.distillation_linear_layer(_out)
                 )
             # The output is a tuple with XCiT model. See:
             # https://github.com/facebookresearch/xcit/blob/master/xcit.py#L404-L405
