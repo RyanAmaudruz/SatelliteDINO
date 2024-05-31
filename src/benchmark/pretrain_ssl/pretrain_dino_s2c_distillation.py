@@ -50,6 +50,7 @@ import pdb
 from torch.utils.tensorboard import SummaryWriter
 
 from datasets.SSL4EO.ssl4eo_dataset_lmdb_new import LMDBDatasetS2C
+from src.benchmark.transfer_classification.models.dino.utils import load_pretrained_weights
 
 #import warnings
 #warnings.filterwarnings("error")
@@ -274,6 +275,16 @@ def train_dino(args):
         DINOHead(embed_dim, args.out_dim, args.use_bn_in_head),
         student_bool=False
     )
+
+    ch_file = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_vits16_dino_0099_ckpt.pth'
+    load_pretrained_weights(student.backbone, ch_file, 'student', 'vit_small', 16)
+    for k, v in student.backbone.named_parameters():
+        v.requires_grad = False
+
+    for k, v in student.named_parameters():
+        print(k)
+        print(v.requires_grad)
+
     # move networks to gpu
     student, teacher = student.cuda(), teacher.cuda()
     # # synchronize batch norms (if any)
@@ -662,8 +673,8 @@ class DataAugmentationDINO_S2(object):
 class FakeArgs:
     arch = 'vit_small'
     bands = 'B13'
-    # batchsize = 48
-    batchsize = 96
+    batchsize = 24
+    # batchsize = 96
     checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/new_testing2'
     clip_grad = 3.0
     data = ''

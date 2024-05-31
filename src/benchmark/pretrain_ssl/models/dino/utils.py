@@ -682,6 +682,7 @@ class MultiCropWrapperDistillation(nn.Module):
         self.student_bool = student_bool
         if student_bool:
             self.dino_v2 = Dinov2Model.from_pretrained("facebook/dinov2-small")
+            self.dino_v2.requires_grad = False
             self.dino_v2_normalisation =  Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
             self.distillation_linear_layer = nn.Linear(384, 384)
         else:
