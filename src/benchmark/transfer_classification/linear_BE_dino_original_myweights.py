@@ -353,7 +353,7 @@ class FakeArgs:
     # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/be_dino_linear_prob_myweights100_240206/'
     # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/distillation_l2_norm/'
     # checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/distillation_l2_normalised_10per/'
-    checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/ssl_s2c_new_transforms_10per/'
+    checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/distillation_l2_normalised/'
 
     data_path = ''
     dist_url = 'env://'
@@ -376,8 +376,8 @@ class FakeArgs:
     # '/gpfs/home2/ramaudruz/detcon-pytorch/detcon-pytorch/xxea7lru/checkpoints/epoch=1-step=7845.ckpt'
 
     # pretrained = '/var/node433/local/ryan_a/data/old_checkpoints/B13_vits16_dino_0099_ckpt.pth'
-    pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint.pth'
-    # pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
+    # pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint.pth'
+    pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
 
     # rank = 0
     resume = True

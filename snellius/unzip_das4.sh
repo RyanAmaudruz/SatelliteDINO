@@ -25,4 +25,4 @@
 
 source activate obdet
 
-srun unzip /var/node433/local/ryan_a/data/ssl4eo_ssl.zip -d /var/node433/local/ryan_a/data/ssl4eo_ssl_new
+srun unzip /var/node433/local/ryan_a/data/leopart_ssl.zip -d /var/node433/local/ryan_a/data

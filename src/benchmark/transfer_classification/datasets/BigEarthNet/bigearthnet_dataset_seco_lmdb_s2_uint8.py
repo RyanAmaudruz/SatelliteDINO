@@ -276,6 +276,7 @@ class LMDBDatasetRA(Dataset):
 
         with h5py.File(f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}.h5', 'r') as f:
             sample = np.array(f.get(self.ref_list[index])).astype('int16')
+            f.close()
 
         target = self.target_map[self.ref_list[index]]
 
