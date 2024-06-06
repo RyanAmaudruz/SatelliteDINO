@@ -38,6 +38,7 @@ import pdb
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import average_precision_score
 import builtins
+import sys
 
 def eval_linear(args):
     utils.init_distributed_mode(args)
@@ -48,6 +49,8 @@ def eval_linear(args):
     print("git:\n  {}\n".format(utils.get_sha()))
     print("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(args)).items())))
     cudnn.benchmark = True
+
+    print({k: getattr(args, k) for k in dir(args) if not k.startswith('_')})
 
     in_channels = 13
     # in_channels = 12
@@ -348,7 +351,10 @@ class FakeArgs:
     batch_size_per_gpu = 64
     checkpoint_key = 'teacher'
     # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/be_dino_linear_prob_myweights100_240206/'
-    checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/distillation_l2_norm/'
+    # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/distillation_l2_norm/'
+    # checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/distillation_l2_normalised_10per/'
+    checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/ssl_s2c_new_transforms_10per/'
+
     data_path = ''
     dist_url = 'env://'
     epochs = 100
@@ -357,7 +363,7 @@ class FakeArgs:
     is_slurm_job = True
     lr = 0.1
     n_last_blocks = 4
-    num_workers = 18
+    num_workers = 16
     patch_size = 16
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl_s2c_2/checkpoint0060.pth'
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0045.pth'
@@ -366,13 +372,18 @@ class FakeArgs:
     # pretrained = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/moco_s2c_new_transforms/checkpoint_0034.pth.tar'
     # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/leopart_ssl/leopart_new_transform/leopart-20240301-143933/ckp-epoch=49.ckpt'
-    pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
+
     # '/gpfs/home2/ramaudruz/detcon-pytorch/detcon-pytorch/xxea7lru/checkpoints/epoch=1-step=7845.ckpt'
+
+    # pretrained = '/var/node433/local/ryan_a/data/old_checkpoints/B13_vits16_dino_0099_ckpt.pth'
+    pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint.pth'
+    # pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
+
     # rank = 0
     resume = True
     seed = 42
     val_freq = 5
-    train_frac = 1.0
+    train_frac = 0.1
     # dtype = 'uint8'
     # bands = 'B13'
     # batchsize = 256

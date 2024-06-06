@@ -208,14 +208,14 @@ class LMDBDatasetRA(Dataset):
         self.is_slurm_job = is_slurm_job
         self.normalize = normalize
         self.patches_to_exclude = set(self.get_patches_to_exclude())
-        self.ref_df = pd.read_csv(f'/gpfs/work5/0/prjs0790/data/bigearthnet/s2a_128_all_{set_type}_content.csv')
+        self.ref_df = pd.read_csv(f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{set_type}_content.csv')
 
         self.ref_list = [
             p for p in self.ref_df['t'].map(lambda x: x.split("',")[0][2:]).tolist()
             if p not in self.patches_to_exclude
         ]
         self.length = len(self.ref_list)
-        metadata_df = pd.read_csv('/gpfs/work5/0/prjs0790/data/bigearthnet/metadata_df.csv')
+        metadata_df = pd.read_csv('/var/node433/local/ryan_a/data/new_ben/bigearthnet/metadata_df.csv')
         metadata_df['labels'] = metadata_df['labels'].map(lambda x: eval(x))
         label_map = dict(zip(metadata_df['dir_name'], metadata_df['labels']))
         self.target_map = {}
@@ -232,7 +232,7 @@ class LMDBDatasetRA(Dataset):
             self.target_map[p] = target
 
 
-        self.target_ref = pd.read_csv(f'/gpfs/work5/0/prjs0790/data/bigearthnet/bigearthnet-{set_type}.txt')
+        self.target_ref = pd.read_csv(f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/bigearthnet-{set_type}.txt')
 
         # if not self.is_slurm_job:
         #     self.env = lmdb.open(self.lmdb_file, max_readers=1, readonly=True, lock=False, readahead=False, meminit=False)
@@ -252,9 +252,9 @@ class LMDBDatasetRA(Dataset):
 
     def get_patches_to_exclude(self):
         patches_to_exclude = []
-        with open('/gpfs/work5/0/prjs0790/data/bigearthnet/patches_with_seasonal_snow.csv', 'r') as f:
+        with open('/var/node433/local/ryan_a/data/new_ben/bigearthnet/patches_with_seasonal_snow.csv', 'r') as f:
             patches_to_exclude += [p.strip() for p in f.readlines()]
-        with open('/gpfs/work5/0/prjs0790/data/bigearthnet/patches_with_cloud_and_shadow.csv', 'r') as f:
+        with open('/var/node433/local/ryan_a/data/new_ben/bigearthnet/patches_with_cloud_and_shadow.csv', 'r') as f:
             patches_to_exclude += [p.strip() for p in f.readlines()]
         return patches_to_exclude
 
@@ -274,7 +274,7 @@ class LMDBDatasetRA(Dataset):
         #     data = txn.get(str(index).encode())
 
 
-        with h5py.File(f'/gpfs/work5/0/prjs0790/data/bigearthnet/s2a_128_all_{self.set_type}.h5', 'r') as f:
+        with h5py.File(f'/var/node433/local/ryan_a/data/bigearthnet/s2a_128_all_{self.set_type}.h5', 'r') as f:
             sample = np.array(f.get(self.ref_list[index])).astype('int16')
 
         target = self.target_map[self.ref_list[index]]

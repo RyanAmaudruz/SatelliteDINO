@@ -13,7 +13,7 @@
 
 
 # #!/bin/bash
-#SBATCH --time=80:00:00
+#SBATCH --time=48:00:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 # #SBATCH --ntasks-per-node=8
@@ -25,4 +25,4 @@
 
 source activate obdet
 
-srun python -m torch.distributed.launch src/benchmark/transfer_classification/linear_BE_dino_original_myweights.py
+srun unzip /var/node433/local/ryan_a/data/ssl4eo_ssl.zip -d /var/node433/local/ryan_a/data/ssl4eo_ssl_new
