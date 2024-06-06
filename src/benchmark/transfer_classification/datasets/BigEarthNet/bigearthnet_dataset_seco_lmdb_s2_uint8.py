@@ -273,10 +273,17 @@ class LMDBDatasetRA(Dataset):
         # with self.env.begin(write=False) as txn:
         #     data = txn.get(str(index).encode())
 
-
-        with h5py.File(f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}.h5', 'r') as f:
-            sample = np.array(f.get(self.ref_list[index])).astype('int16')
-            f.close()
+        file_path = f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}.h5'
+        for try_count in range(10):
+            try:
+                with h5py.File(file_path, 'r', locking=False) as f:
+                    sample = np.array(f.get(self.ref_list[index])).astype('int16')
+                    f.close()
+                break
+            except Exception as e:
+                print(e)
+                print(f'Reading error occured - Try {try_count}')
+                time.sleep(try_count + 1)
 
         target = self.target_map[self.ref_list[index]]
 
