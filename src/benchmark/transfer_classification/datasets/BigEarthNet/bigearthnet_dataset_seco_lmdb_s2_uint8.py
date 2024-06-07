@@ -202,7 +202,8 @@ class LMDBDataset(Dataset):
 
 class LMDBDatasetRA(Dataset):
 
-    def __init__(self, set_type, is_slurm_job=False, transform=None, normalize=False):
+    def __init__(self, set_type, is_slurm_job=False, transform=None, normalize=False, file_index=1):
+        self.file_index = file_index
         self.set_type = set_type
         self.transform = transform
         self.is_slurm_job = is_slurm_job
@@ -273,17 +274,21 @@ class LMDBDatasetRA(Dataset):
         # with self.env.begin(write=False) as txn:
         #     data = txn.get(str(index).encode())
 
-        file_path = f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}.h5'
-        for try_count in range(10):
-            try:
-                with h5py.File(file_path, 'r', locking=False) as f:
-                    sample = np.array(f.get(self.ref_list[index])).astype('int16')
-                    f.close()
-                break
-            except Exception as e:
-                print(e)
-                print(f'Reading error occured - Try {try_count}')
-                time.sleep(try_count + 1)
+        # file_path = f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}.h5'
+        # for try_count in range(10):
+        #     try:
+        #         with h5py.File(file_path, 'r', locking=False) as f:
+        #             sample = np.array(f.get(self.ref_list[index])).astype('int16')
+        #             f.close()
+        #         break
+        #     except Exception as e:
+        #         print(e)
+        #         print(f'Reading error occured - Try {try_count}')
+        #         time.sleep(try_count + 1)
+
+        file_path = f'/var/node433/local/ryan_a/data/new_ben/bigearthnet/s2a_128_all_{self.set_type}{self.file_index}.h5'
+        with h5py.File(file_path, 'r') as f:
+            sample = np.array(f.get(self.ref_list[index])).astype('int16')
 
         target = self.target_map[self.ref_list[index]]
 

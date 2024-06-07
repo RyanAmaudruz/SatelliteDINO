@@ -122,12 +122,14 @@ def eval_linear(args):
     dataset_train = LMDBDatasetRA(
         set_type='train',
         transform=train_transform,
-        is_slurm_job=args.is_slurm_job
+        is_slurm_job=args.is_slurm_job,
+        file_index=args.file_index
     )
     dataset_val = LMDBDatasetRA(
         set_type='val',
         transform=val_transform,
-        is_slurm_job=args.is_slurm_job
+        is_slurm_job=args.is_slurm_job,
+        file_index=args.file_index
     )        
 
     if args.train_frac is not None and args.train_frac<1:
@@ -359,6 +361,7 @@ class FakeArgs:
     dist_url = 'env://'
     epochs = 100
     evaluate = False
+    file_index = 2
     gpu = 0
     is_slurm_job = True
     lr = 0.1
