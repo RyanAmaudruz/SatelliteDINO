@@ -48,6 +48,12 @@ Below, we show a few samples of the SSL4EO-S12 dataset under different band conf
 ## Installation
 We add conda yaml files to set up the Python environment under the [installation directory](https://github.com/RyanAmaudruz/SatelliteDINO/tree/main/installation).
 
+### How to run
+- **[DINO SSL Script](https://github.com/RyanAmaudruz/SatelliteDINO/tree/main/snellius/train_dino_s2c.sh)**
+- **[BigEarthNet Linear Probing Script](https://github.com/RyanAmaudruz/SatelliteDINO/tree/main/snellius/linear_BE_dino_original_myweights.sh)**
+
+These scripts facilitate experimentation and training for remote sensing tasks. Check the scripts in the Snellius folder for more details.
+
 ## Contributions
 - [x] **Refactoring**: Adapted the data loading for our purpose, added comments and performed cleaning.
 - [x] **Data augmentations**: Updated the data augmentation. In particular, we create 2 special functions to randomly vary the saturation and contrast of the Multi-Spectral images used during the SSL pretraining phase.
