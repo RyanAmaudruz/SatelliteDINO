@@ -1,18 +1,13 @@
 
 import matplotlib.pyplot as plt
-import sys
 import numpy as np
-import h5py
 import pandas as pd
 import torch
-import torch.nn as nn
 from sklearn.cluster import KMeans
-from torch.utils.data import Dataset
-from torchvision import models as torchvision_models
 from cvtorchvision import cvtransforms
 import torch.nn.functional as F
 
-from src.benchmark.pretrain_ssl.datasets.SSL4EO.ssl4eo_dataset_lmdb_old import load_meta_df, LMDBDatasetS2C
+from src.benchmark.pretrain_ssl.datasets.SSL4EO.ssl4eo_dataset_dataloader import load_meta_df, LMDBDatasetS2C
 from src.benchmark.pretrain_ssl.models.dino import vision_transformer as vits
 from src.benchmark.transfer_classification.models.dino.utils import load_pretrained_weights
 

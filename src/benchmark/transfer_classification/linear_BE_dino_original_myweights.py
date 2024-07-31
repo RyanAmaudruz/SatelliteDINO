@@ -29,7 +29,6 @@ from models.dino import utils
 from models.dino import vision_transformer as vits
 
 # load bigearthnet dataset
-from datasets.BigEarthNet.bigearthnet_dataset_seco import Bigearthnet
 from datasets.BigEarthNet.bigearthnet_dataset_seco_lmdb_s2_uint8 import LMDBDataset, random_subset, LMDBDatasetRA
 from cvtorchvision import cvtransforms
 ### end of change ###
@@ -311,14 +310,9 @@ def validate_network(val_loader, model, linear_classifier, n, avgpool):
         batch_size = inp.shape[0]
         metric_logger.update(loss=loss.item())
         metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
-        #
-        # logger_dic = {"valid loss": loss.item(), "valid acc1": acc1.item()}
         
         if linear_classifier.module.num_labels >= 5:
             metric_logger.meters['acc5'].update(acc5.item(), n=batch_size)
-            # logger_dic['valid acc5'] = acc5.item()
-
-        # wandb.log(logger_dic)
         
     
     if linear_classifier.module.num_labels >= 5:
@@ -352,11 +346,7 @@ class FakeArgs:
     bands = 'all'
     batch_size_per_gpu = 64
     checkpoint_key = 'teacher'
-    # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/be_dino_linear_prob_myweights100_240206/'
-    # checkpoints_dir = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_linear_probing/distillation_l2_norm/'
-    # checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/distillation_l2_normalised_10per/'
     checkpoints_dir = '/var/node433/local/ryan_a/new_data/ben_checkpoints/distillation_l2_normalised/'
-
     data_path = ''
     dist_url = 'env://'
     epochs = 100
@@ -368,50 +358,11 @@ class FakeArgs:
     n_last_blocks = 4
     num_workers = 16
     patch_size = 16
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl_s2c_2/checkpoint0060.pth'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0045.pth'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0050.pth'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint0095.pth'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/ssl4eo_ssl/moco_s2c_new_transforms/checkpoint_0034.pth.tar'
-    # pretrained = '/gpfs/work5/0/prjs0790/data/run_outputs/checkpoints/leopart_ssl/leopart_new_transform/leopart-20240301-143933/ckp-epoch=49.ckpt'
-
-    # '/gpfs/home2/ramaudruz/detcon-pytorch/detcon-pytorch/xxea7lru/checkpoints/epoch=1-step=7845.ckpt'
-
-    # pretrained = '/var/node433/local/ryan_a/data/old_checkpoints/B13_vits16_dino_0099_ckpt.pth'
-    # pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/ssl_s2c_new_transforms/checkpoint.pth'
     pretrained = '/var/node433/local/ryan_a/data/ssl4eo_ssl/ssl4eo_ssl/distillation_l2_normalised/checkpoint.pth'
-
-    # rank = 0
     resume = True
     seed = 42
     val_freq = 5
     train_frac = 0.1
-    # dtype = 'uint8'
-    # bands = 'B13'
-    # batchsize = 256
-    # checkpoints_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/output/checkpoints'
-    # data_dir = '/gpfs/home2/ramaudruz/SSL4EO-S12/data/EuroSAT/EuroSATallBands'
-    # dist_url = 'env://'
-    # backbone = 'vit_small'
-    # train_frac = 1.0
-    # lr = 0.1
-    # cos = True
-    # epochs = 100
-    # num_workers = 10
-    # seed = 42
-    # in_size = 224
-    # pretrained = '/gpfs/home2/ramaudruz/SSL4EO-S12//old_checkpoints/B13_vits16_moco_0099_ckpt.pth'
-    # linear = True
-    # local_rank = 0
-    # normalize = False
-    # rank = 0
-    # resume = ''
-    # schedule = [60, 80]
-    # subset = None
-    # world_size = -1
-    # is_slurm_job = False
-
 
 if __name__ == '__main__':
     # parser = argparse.ArgumentParser('Evaluation with linear classification on BigEarthNet.')

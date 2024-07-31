@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
 import argparse
 import os
 import sys
@@ -19,39 +21,28 @@ import time
 import math
 import json
 from pathlib import Path
-import builtins
 import wandb
-
 import numpy as np
-from PIL import Image
 import torch
 import torch.nn as nn
-import torch.distributed as dist
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision import models as torchvision_models
-import torchvision
-from torchvision.transforms import InterpolationMode
+from cvtorchvision import cvtransforms
+from torch.utils.tensorboard import SummaryWriter
 
 from models.dino import utils
 import models.dino.vision_transformer as vits
 from models.dino.vision_transformer import DINOHead
 
 
-from datasets.SSL4EO.ssl4eo_dataset_lmdb import LMDBDataset
-from cvtorchvision import cvtransforms
-from models.rs_transforms_uint8 import RandomChannelDrop, GaussianBlur, Solarize, RandomBrightness, RandomContrast, \
-    ToGray, RandomSensorDrop_S1S2, RandomSaturation, RandomHue
-### end of change ###
-import pdb
+from models.rs_transforms_uint8 import (
+    GaussianBlur, Solarize, RandomBrightness, RandomContrast, ToGray, RandomSensorDrop_S1S2, RandomSaturation, RandomHue
+)
 
-from torch.utils.tensorboard import SummaryWriter
 
-from datasets.SSL4EO.ssl4eo_dataset_lmdb_old import LMDBDatasetS2C
-
-#import warnings
-#warnings.filterwarnings("error")
+from datasets.SSL4EO.ssl4eo_dataset_dataloader import LMDBDatasetS2C
 
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
     if name.islower() and not name.startswith("__")
@@ -204,7 +195,6 @@ def train_dino(args):
     dataset = LMDBDatasetS2C(
         lmdb_file=args.data,
         s2c_transform=transform,
-        # is_slurm_job=args.is_slurm_job,
         normalize=args.normalize,
         dtype=args.dtype,
         mode=args.mode
@@ -251,8 +241,6 @@ def train_dino(args):
     else:
         print(f"Unknow architecture: {args.arch}")
 
-    # utils.load_pretrained_weights(student, pretrained_weights='', model_name='vit_small', checkpoint_key=None, patch_size=args.patch_size)
-
     # multi-crop wrapper handles forward with inputs of different resolutions
     student = utils.MultiCropWrapper(student, DINOHead(
         embed_dim,
@@ -266,23 +254,10 @@ def train_dino(args):
     )
     # move networks to gpu
     student, teacher = student.cuda(), teacher.cuda()
-    # # synchronize batch norms (if any)
-    # if utils.has_batchnorms(student):
-    #     student = nn.SyncBatchNorm.convert_sync_batchnorm(student)
-    #     teacher = nn.SyncBatchNorm.convert_sync_batchnorm(teacher)
-    #
-    #     # we need DDP wrapper to have synchro batch norms working...
-    #     teacher = nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
-    #     teacher_without_ddp = teacher.module
-    # else:
-    #     # teacher_without_ddp and teacher are the same thing
-    #     teacher_without_ddp = teacher
-    # student = nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
-    teacher_without_ddp = teacher
 
     # teacher and student start with the same weights
-    # teacher_without_ddp.load_state_dict(student.module.state_dict())
-    teacher_without_ddp.load_state_dict(student.state_dict())
+    teacher.load_state_dict(student.state_dict())
+
     # there is no backpropagation through the teacher, so no need for gradients
     for p in teacher.parameters():
         p.requires_grad = False
@@ -314,7 +289,6 @@ def train_dino(args):
 
     # ============ init schedulers ... ============
     lr_schedule = utils.cosine_scheduler(
-        # args.lr * (args.batch_size_per_gpu * utils.get_world_size()) / 256.,  # linear scaling rule
         args.lr * (args.batchsize * utils.get_world_size()) / 256.,  # linear scaling rule
         args.min_lr,
         args.epochs, len(data_loader),
@@ -326,8 +300,7 @@ def train_dino(args):
         args.epochs, len(data_loader),
     )
     # momentum parameter is increased to 1. during training with a cosine schedule
-    momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1,
-                                               args.epochs, len(data_loader))
+    momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1, args.epochs, len(data_loader))
     print(f"Loss, optimizer and schedulers ready.")
 
     # ============ optionally resume training ... ============
@@ -386,9 +359,6 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Epoch: [{}/{}]'.format(epoch, args.epochs)
     for it, images in enumerate(metric_logger.log_every(data_loader, 10, header)):
-        
-        #images = [torch.cat((images_s2[i],images_s1[i]),axis=1) for i in range(len(images_s2))]
-        
         # update weight decay and learning rate according to their schedule
         it = len(data_loader) * epoch + it  # global training iteration
         for i, param_group in enumerate(optimizer.param_groups):
@@ -495,78 +465,13 @@ class DINOLoss(nn.Module):
         Update center used for teacher output.
         """
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        # dist.all_reduce(batch_center)
-        # batch_center = batch_center / (len(teacher_output) * dist.get_world_size())
         batch_center = batch_center / len(teacher_output)
 
         # ema update
         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
-
-
-
-class DataAugmentationDINO(object):
-    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number):
-        flip_and_color_jitter = cvtransforms.Compose([
-            cvtransforms.RandomHorizontalFlip(p=0.5),
-            cvtransforms.RandomApply([
-                RandomBrightness(0.4),
-                RandomContrast(0.4)
-            ], p=0.8),
-            cvtransforms.RandomApply([ToGray(14)], p=0.2),
-        ])
-        normalize = cvtransforms.Compose([
-            cvtransforms.ToTensor(),
-            #cvtransforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-        ])
-        sensor_drop = cvtransforms.RandomApply([RandomSensorDrop_S1S2()], p=0.5)
-
-        # first global crop
-        self.global_transfo1 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
-            flip_and_color_jitter,
-            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
-            normalize,
-            sensor_drop
-        ])
-        # second global crop
-        self.global_transfo2 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
-            flip_and_color_jitter,
-            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
-            cvtransforms.RandomApply([Solarize(128)], p=0.2),
-            normalize,
-            sensor_drop
-        ])
-        # transformation for the local small crops
-        self.local_crops_number = local_crops_number
-        self.local_transfo = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(48, scale=local_crops_scale, interpolation='BICUBIC'),
-            flip_and_color_jitter,
-            cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-            normalize,
-            sensor_drop
-        ])
-
-    def __call__(self, image):
-        crops = []
-        crops.append(self.global_transfo1(image))
-        crops.append(self.global_transfo2(image))
-        for _ in range(self.local_crops_number):
-            crops.append(self.local_transfo(image))
-        return crops
         
 class DataAugmentationDINO_S2(object):
     def __init__(self, global_crops_scale, local_crops_scale, local_crops_number, season='fixed'):
-        # flip_and_color_jitter = transforms.Compose([
-        #     transforms.RandomHorizontalFlip(p=0.5),
-        #     transforms.RandomApply([
-        #         RandomBrightness(0.4),
-        #         RandomContrast(0.4),
-        #         RandomSaturation(0.2),
-        #         RandomHue(0.1)
-        #     ], p=0.8),
-        #     transforms.RandomApply([ToGray(13)], p=0.2),
-        # ])
         flip_and_color_jitter = cvtransforms.Compose([
             cvtransforms.RandomHorizontalFlip(p=0.5),
             cvtransforms.RandomApply([
@@ -579,12 +484,10 @@ class DataAugmentationDINO_S2(object):
         ])
         normalize = transforms.Compose([
             transforms.ToTensor(),
-            #cvtransforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
         
         # first global crop
         self.global_transfo1 = transforms.Compose([
-            # transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
             cvtransforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
             cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
@@ -592,7 +495,6 @@ class DataAugmentationDINO_S2(object):
         ])
         # second global crop
         self.global_transfo2 = transforms.Compose([
-            # transforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation=InterpolationMode.BICUBIC),
             cvtransforms.RandomResizedCrop(args.in_size, scale=global_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
             cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
@@ -602,7 +504,6 @@ class DataAugmentationDINO_S2(object):
         # transformation for the local small crops
         self.local_crops_number = local_crops_number
         self.local_transfo = transforms.Compose([
-            # transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=InterpolationMode.BICUBIC),
             cvtransforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation='BICUBIC'),
             flip_and_color_jitter,
             cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
@@ -631,10 +532,6 @@ class DataAugmentationDINO_S2(object):
         x1 = np.transpose(image[season1,:,:,:],(1,2,0))
         x2 = np.transpose(image[season2,:,:,:],(1,2,0))
         x3 = np.transpose(image[season3,:,:,:],(1,2,0))
-
-        # x1 = image[season1,:,:,:]
-        # x2 = image[season2,:,:,:]
-        # x3 = image[season3,:,:,:]
         
         crops = []
         crops.append(self.global_transfo1(x1))
@@ -642,54 +539,6 @@ class DataAugmentationDINO_S2(object):
         for _ in range(self.local_crops_number):
             crops.append(self.local_transfo(x3))
         return crops
-
-class DataAugmentationDINO_S1(object):
-    def __init__(self, global_crops_scale, local_crops_scale, local_crops_number):
-        flip_and_color_jitter = cvtransforms.Compose([
-            #cvtransforms.RandomHorizontalFlip(p=0.5),
-            #cvtransforms.RandomApply([
-            #    RandomBrightness(0.4),
-            #    RandomContrast(0.4)
-            #], p=0.8),
-            #cvtransforms.RandomApply([ToGray(2)], p=0.2),
-        ])
-        normalize = cvtransforms.Compose([
-            cvtransforms.ToTensor(),
-            #cvtransforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-        ])
-
-        # first global crop
-        self.global_transfo1 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
-            #flip_and_color_jitter,
-            #cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=1.0),
-            normalize,
-        ])
-        # second global crop
-        self.global_transfo2 = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(112, scale=global_crops_scale, interpolation='BICUBIC'),
-            #flip_and_color_jitter,
-            #cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.1),
-            #cvtransforms.RandomApply([Solarize(128)], p=0.2),
-            normalize,
-        ])
-        # transformation for the local small crops
-        self.local_crops_number = local_crops_number
-        self.local_transfo = cvtransforms.Compose([
-            cvtransforms.RandomResizedCrop(48, scale=local_crops_scale, interpolation='BICUBIC'),
-            #flip_and_color_jitter,
-            #cvtransforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-            normalize,
-        ])
-
-    def __call__(self, image):
-        crops = []
-        crops.append(self.global_transfo1(image))
-        crops.append(self.global_transfo2(image))
-        for _ in range(self.local_crops_number):
-            crops.append(self.local_transfo(image))
-        return crops
-
 
 class FakeArgs:
     arch = 'vit_small'
@@ -710,8 +559,6 @@ class FakeArgs:
     local_crops_number = 8
     local_crops_scale = (0.05, 0.4)
     local_rank = 0
-    # lr = 0.00015
-    # min_lr = 1e-06
     lr = 0.00015
     min_lr = 1e-06
     mode = ['s2c']
@@ -740,9 +587,6 @@ if __name__ == '__main__':
     # args = parser.parse_args()
 
     args = FakeArgs()
-
-    # [print([k, getattr(args, k)]) for k in dir(args) if not k.startswith('_')]
-    # raise ValueError()
 
     run = wandb.init(
         # Set the project where this run will be logged
