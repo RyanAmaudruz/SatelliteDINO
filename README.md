@@ -30,7 +30,7 @@ Full paper available upon request.
 
 Author: *Amaudruz R.*
 
-Supervisors: *Asano Y., Russwurm, M.*
+Supervisors: *Asano Y., Russwurm M.*
 
 ## Acknowledgements
 This project builds upon the work in the repository [SSL4EO-S12](https://github.com/zhu-xlab/SSL4EO-S12). The original research was conducted by Yi Wang, Nassim Ait Ali Braham, Zhitong Xiong, Chenying Liu, Conrad M. Albrecht, and Xiao Xiang Zhu, as part of their study titled "[SSL4EO-S12: A Large-Scale Multi-Modal, Multi-Temporal Dataset for Self-Supervised Learning in Earth Observation](https://ieeexplore.ieee.org/abstract/document/10261879)" (2023). We extend our gratitude to the authors for their contributions to the open-source community, which have provided a valuable foundation for this thesis.
