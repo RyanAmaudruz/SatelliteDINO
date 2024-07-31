@@ -46,7 +46,7 @@ Below, we show a few samples of the SSL4EO-S12 dataset under different band conf
 ![Alt Text](visuals/ssl4eo_samples.png)
 
 ## Installation
-We add conda yaml files to set up the Python environment under the [installation directory](https://github.com/your-username/your-repo-name/tree/main/installation).
+We add conda yaml files to set up the Python environment under the [installation directory](https://github.com/RyanAmaudruz/SatelliteDINO/tree/main/installation).
 
 ## Contributions
 - [x] **Refactoring**: Adapted the data loading for our purpose, added comments and performed cleaning.
